@@ -1,0 +1,18 @@
+[
+    {"slot_id": "R1-S1", "zone": "DIS", "expected_calibre": "1A", "expected_identification": "DIS-001", "position_index": 1},
+    {"slot_id": "R1-S2", "zone": "DIS", "expected_calibre": "1A", "expected_identification": "DIS-002", "position_index": 2},
+    {"slot_id": "R1-S3", "zone": "DIS", "expected_calibre": "1A", "expected_identification": "DIS-003", "position_index": 3},
+    {"slot_id": "R1-S4", "zone": "SCMT", "expected_calibre": "3A", "expected_identification": "SCMT-001", "position_index": 4},
+    {"slot_id": "R1-S5", "zone": "SCMT", "expected_calibre": "3A", "expected_identification": "SCMT-002", "position_index": 5},
+    {"slot_id": "R1-S6", "zone": "RADIO", "expected_calibre": "3A", "expected_identification": "RADIO-001", "position_index": 6},
+    {"slot_id": "R1-S7", "zone": "RADIO", "expected_calibre": "3A", "expected_identification": "RADIO-002", "position_index": 7},
+    {"slot_id": "R1-S8", "zone": "RADIO", "expected_calibre": "3A", "expected_identification": "RADIO-003", "position_index": 8},
+    {"slot_id": "R2-S1", "zone": "DIS", "expected_calibre": "1A", "expected_identification": "DIS-004", "position_index": 9},
+    {"slot_id": "R2-S2", "zone": "DIS", "expected_calibre": "1A", "expected_identification": "DIS-005", "position_index": 10},
+    {"slot_id": "R2-S3", "zone": "DIS", "expected_calibre": "1A", "expected_identification": "DIS-006", "position_index": 11},
+    {"slot_id": "R2-S4", "zone": "SCMT", "expected_calibre": "3A", "expected_identification": "SCMT-003", "position_index": 12},
+    {"slot_id": "R2-S5", "zone": "SCMT", "expected_calibre": "3A", "expected_identification": "SCMT-004", "position_index": 13},
+    {"slot_id": "R2-S6", "zone": "RADIO", "expected_calibre": "3A", "expected_identification": "RADIO-004", "position_index": 14},
+    {"slot_id": "R2-S7", "zone": "RADIO", "expected_calibre": "3A", "expected_identification": "RADIO-005", "position_index": 15},
+    {"slot_id": "R2-S8", "zone": "RADIO", "expected_calibre": "3A", "expected_identification": "RADIO-006", "position_index": 16}
+]
