@@ -1,0 +1,6 @@
+path: detection/dataset
+train: images
+val: images
+
+nc: 2
+names: ['switch', 'sticker']
