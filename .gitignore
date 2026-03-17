@@ -5,3 +5,4 @@ __pycache__/
 
 detection/dataset/images/
 detection/dataset/labels/
+preprocessing/crops
