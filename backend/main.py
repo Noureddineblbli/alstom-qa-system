@@ -1,24 +1,31 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from backend.pipeline import run_pipeline
 
 # Initialize the FastAPI app
 app = FastAPI()
 
 # 1. Define the input data structure
-class ScannedSlotInput(BaseModel):
-    slot_id: str
-    scanned_calibre: str
-    scanned_identification: str
+class ImageValidationInput(BaseModel):
+    image_path: str
+    row_id: str
 
 # 2. Define the POST endpoint
 @app.post("/api/validate_slot")
-async def validate_slot(input_data: ScannedSlotInput):
-    # This is where the magic (comparison logic) will live soon.
-    # For now, we "Mock" a success response.
-    return {
-        "status": "PASS",
-        "message": f"Successfully received data for slot {input_data.slot_id}."
-    }
+async def validate_slot(input_data: ImageValidationInput):
+    try:
+        results = run_pipeline(input_data.image_path)
+        return {
+            "status": "SUCCESS",
+            "row_id": input_data.row_id,
+            "image_path": input_data.image_path,
+            "validation_results": results
+        }
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "message": str(e)
+        }
 
 # How to run: 
 # uvicorn backend.main:app --reload
