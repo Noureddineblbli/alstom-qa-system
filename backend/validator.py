@@ -1,10 +1,11 @@
 import sys
 import os
 
-# Append the root project directory so Python can find your 'data' folder from Round 1
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Append the root project directory
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
-# Import your real database loader!
 from data.blueprint_loader import get_slot_info
 
 def check_assembly(slot_id, extracted_calibre, extracted_identification):

@@ -2,7 +2,7 @@ import cv2
 import os
 import numpy as np
 
-def extract_crops(image_path, mapped_pairs):
+def extract_crops(image_path, mapped_pairs, start_idx=0):
     """
     Slices the original image based on mapped_pairs and saves individual chips.
     """
@@ -14,7 +14,8 @@ def extract_crops(image_path, mapped_pairs):
         return
 
     # Iterate through our grouped pairs from Step 2
-    for idx, pair in enumerate(mapped_pairs):
+    for i, pair in enumerate(mapped_pairs):
+        idx = start_idx + i
         # Extract coordinates [x1, y1, x2, y2]
         s_box = pair['switch']['box'] # Switch
         t_box = pair['sticker']['box'] # Sticker

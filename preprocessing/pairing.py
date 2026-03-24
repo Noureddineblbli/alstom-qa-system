@@ -1,9 +1,8 @@
 # Import the logic Intern A created
-from geometry import calculate_centroid
-
+from preprocessing.geometry import calculate_centroid
 # The 'X_TOLERANCE' is the number of pixels allowed for horizontal alignment
 # between the center of a sticker and the center of a switch.
-X_TOLERANCE = 25 
+X_TOLERANCE = 100 
 
 def match_stickers_to_switches(stickers, switches):
     mapped_pairs = []
