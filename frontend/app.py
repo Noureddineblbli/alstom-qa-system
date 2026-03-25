@@ -152,7 +152,7 @@ if 'capture_path' not in st.session_state:
 st.sidebar.header("Camera Input")
 
 # Button to trigger OpenCV Camera
-if st.sidebar.button("📸 Open Camera & Capture", use_container_width=True):
+if st.sidebar.button("📸 Capture Image", use_container_width=True):
     st.sidebar.info("Look for the camera window! Press Spacebar to capture.")
     
     # Call our new function
@@ -172,7 +172,7 @@ if st.session_state['capture_path'] and os.path.exists(st.session_state['capture
 col1, col2 = st.columns([2, 1])
 
 with col2:
-    scan_button = st.button("🔍 Scan Captured Row", use_container_width=True)
+    scan_button = st.button("🔍 Confirm & Scan", use_container_width=True)
 
 # Handle scan button click
 if scan_button:
