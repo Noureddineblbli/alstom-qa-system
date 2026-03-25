@@ -3,6 +3,12 @@ import requests
 from pathlib import Path
 import time
 import json
+import os
+import sys
+
+# Ensure we can import from the frontend directory
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from camera import capture_frame
 
 # Page configuration
 st.set_page_config(
@@ -13,10 +19,7 @@ st.set_page_config(
 
 # Title
 st.title("🔍 Alstom QA System - Row Validator")
-st.write("Upload a factory row image for automatic component validation")
-
-# Load blueprint directly from JSON file
-blueprint_path = Path(__file__).parent.parent / "data" / "blueprint.json"
+st.write("Capture a factory row image using your camera for automatic component validation")
 
 # Load blueprint directly from JSON file
 blueprint_path = Path(__file__).parent.parent / "data" / "blueprint.json"
@@ -129,7 +132,7 @@ def display_result_card(slot_result):
             st.caption(f"ℹ️ {message}")
 
 
-# Sidebar for inputs
+# --- Sidebar Setup ---
 st.sidebar.header("Configuration")
 
 # Row ID input
@@ -142,29 +145,41 @@ row_id = st.sidebar.number_input(
     help="Which row number are you scanning?"
 )
 
-# Image upload
-st.sidebar.header("Upload Image")
-uploaded_file = st.sidebar.file_uploader(
-    "Choose an image file",
-    type=["jpg", "jpeg", "png", "bmp"],
-    help="Upload a factory row image"
-)
+# Initialize session state for the captured image
+if 'capture_path' not in st.session_state:
+    st.session_state['capture_path'] = None
 
-# Main content area
+st.sidebar.header("Camera Input")
+
+# Button to trigger OpenCV Camera
+if st.sidebar.button("📸 Open Camera & Capture", use_container_width=True):
+    st.sidebar.info("Look for the camera window! Press Spacebar to capture.")
+    
+    # Call our new function
+    captured_path = capture_frame()
+    
+    # Save to session state so it doesn't disappear when Streamlit reruns
+    if captured_path:
+        st.session_state['capture_path'] = captured_path
+
+# Show the preview in the sidebar if an image was captured
+if st.session_state['capture_path'] and os.path.exists(st.session_state['capture_path']):
+    st.sidebar.success("Image ready for scanning!")
+    st.sidebar.image(st.session_state['capture_path'], caption="Captured Frame")
+
+
+# --- Main Content Area ---
 col1, col2 = st.columns([2, 1])
 
 with col2:
-    scan_button = st.button("🔍 Scan Row", use_container_width=True)
+    scan_button = st.button("🔍 Scan Captured Row", use_container_width=True)
 
 # Handle scan button click
 if scan_button:
-    if uploaded_file is None:
-        st.error("❌ Please upload an image first!")
+    if not st.session_state['capture_path']:
+        st.error("❌ Please capture an image first using the sidebar button!")
     else:
-        # Save uploaded file temporarily
-        temp_path = f"temp_{uploaded_file.name}"
-        with open(temp_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+        image_to_scan = st.session_state['capture_path']
 
         # Show loading spinner and make API call
         with st.spinner("🔄 Processing image... This may take a moment"):
@@ -173,7 +188,7 @@ if scan_button:
                 response = requests.post(
                     "http://localhost:8000/api/validate_slot",
                     json={
-                        "image_path": temp_path,
+                        "image_path": image_to_scan,
                         "row_id": f"R{row_id}"
                     }
                 )
