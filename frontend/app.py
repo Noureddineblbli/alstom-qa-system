@@ -195,34 +195,39 @@ if scan_button:
 
                 if response.status_code == 200:
                     results = response.json()
-                    st.success("✅ Validation Complete!")
-
-                    # Display results header
-                    st.markdown("---")
-                    st.subheader(
-                        f"📋 Validation Results for {results.get('row_id', 'Row')}")
-
-                    # Count pass/fail
                     validation_results = results.get('validation_results', [])
-                    pass_count = sum(
-                        1 for r in validation_results if r.get('status') == 'PASS')
-                    fail_count = len(validation_results) - pass_count
+                    
+                    # NEW CHECK: Did YOLO actually find anything?
+                    if len(validation_results) == 0:
+                        st.warning("⚠️ No panel components detected! Please ensure the camera is pointed clearly at the switches and stickers, then try capturing again.")
+                    else:
+                        st.success("✅ Validation Complete!")
 
-                    # Summary metrics
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Total Slots", len(validation_results))
-                    with col2:
-                        st.metric("✅ Passed", pass_count, delta=None)
-                    with col3:
-                        st.metric("❌ Failed", fail_count, delta=None)
+                        # Display results header
+                        st.markdown("---")
+                        st.subheader(f"📋 Validation Results for {results.get('row_id', 'Row')}")
 
-                    st.markdown("---")
+                        # Count pass/fail
+                        pass_count = sum(1 for r in validation_results if r.get('status') == 'PASS')
+                        fail_count = len(validation_results) - pass_count
 
-                    # Display individual slot cards
-                    st.subheader("Slot Details")
-                    for slot_result in validation_results:
-                        display_result_card(slot_result)
+                        # Summary metrics
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Total Slots", len(validation_results))
+                        with col2:
+                            st.metric("✅ Passed", pass_count, delta=None)
+                        with col3:
+                            st.metric("❌ Failed", fail_count, delta=None)
+
+                        st.markdown("---")
+
+                        # Display individual slot cards
+                        st.subheader("Slot Details")
+                        for slot_result in validation_results:
+                            display_result_card(slot_result)
+                
+                
                 else:
                     st.error(f"❌ API Error: {response.status_code}")
                     st.write(response.text)
