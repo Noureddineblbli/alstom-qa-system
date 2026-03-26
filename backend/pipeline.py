@@ -51,11 +51,18 @@ def run_pipeline(image_path):
 
     for result in yolo_results:
         for i, box in enumerate(result.boxes):
+            # 1. Filter out low confidence hallucinations (below 48%)
+            confidence = float(box.conf)
+            if confidence < 0.48:
+                continue
+
             class_id = int(box.cls)
             class_name = result.names[class_id]
             x1, y1, x2, y2 = box.xyxy[0].tolist()
+            
             detection = {"id": f"{class_name}_{i}",
                          "label": class_name, "box": [x1, y1, x2, y2]}
+                         
             if class_name == "switch":
                 switches.append(detection)
             else:
