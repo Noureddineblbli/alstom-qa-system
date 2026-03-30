@@ -16,16 +16,18 @@ def get_calibre_text(crop_image_path):
     global _easyocr_reader
     if _easyocr_reader is None:
         _easyocr_reader = easyocr.Reader(['en'], gpu=False)
-    
+
     img = cv2.imread(crop_image_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         return None, 0.0
-    
-    result = _easyocr_reader.readtext(img, allowlist='0123456789', mag_ratio=2.5)
-    
+
+    result = _easyocr_reader.readtext(
+        img, allowlist='0123456789', mag_ratio=2.5)
+
     if result:
         return result[0][1], result[0][2]
     return None, 0.0
+
 
 logging.getLogger("ppocr").setLevel(logging.ERROR)
 
@@ -56,23 +58,24 @@ def get_raw_text(crop_image_path):
             text = line[1][0]
             confidence = line[1][1]
             extracted_words.append(text)
-            
+
             # Keep track of the highest confidence found in the sticker
             if confidence > highest_conf:
                 highest_conf = confidence
-                
+
         except (IndexError, TypeError):
             continue
 
     # If no text was found at all
     if not extracted_words:
         return None, 0.0
-        
+
     # Join everything into one string, then split by spaces to get the first word
     full_text = " ".join(extracted_words)
-    first_word = full_text.split()[0]
+    first_word = full_text.split()[0]git
 
     return first_word, highest_conf
+
 
 # --- TEST BLOCK ---
 if __name__ == "__main__":
