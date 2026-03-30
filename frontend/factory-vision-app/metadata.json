@@ -1,0 +1,5 @@
+{
+  "name": "Factory Vision Inspector",
+  "description": "A tablet-optimized industrial computer vision interface for quality control and panel inspection.",
+  "requestFramePermissions": ["camera"]
+}
