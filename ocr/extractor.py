@@ -38,32 +38,41 @@ ocr_model = PaddleOCR(
 
 def get_raw_text(crop_image_path):
     """
-    Passes a cropped image to PaddleOCR and returns the highest-confidence text.
+    Passes a cropped image to PaddleOCR, reads all text, 
+    and returns ONLY the first word (the identifier) and the highest confidence score.
     """
-    result = ocr_model.ocr(crop_image_path, cls=True)  # .ocr() not .predict()
+    result = ocr_model.ocr(crop_image_path, cls=True)
 
     # Guard against empty or None results
     if not result or result[0] is None:
         return None, 0.0
 
     lines = result[0]
-
-    highest_conf = -1.0
-    best_text = ""
+    extracted_words = []
+    highest_conf = 0.0
 
     for line in lines:
         try:
             text = line[1][0]
             confidence = line[1][1]
+            extracted_words.append(text)
+            
+            # Keep track of the highest confidence found in the sticker
+            if confidence > highest_conf:
+                highest_conf = confidence
+                
         except (IndexError, TypeError):
             continue
 
-        if confidence > highest_conf:
-            highest_conf = confidence
-            best_text = text
+    # If no text was found at all
+    if not extracted_words:
+        return None, 0.0
+        
+    # Join everything into one string, then split by spaces to get the first word
+    full_text = " ".join(extracted_words)
+    first_word = full_text.split()[0]
 
-    return best_text, highest_conf
-
+    return first_word, highest_conf
 
 # --- TEST BLOCK ---
 if __name__ == "__main__":
