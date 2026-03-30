@@ -6,3 +6,6 @@ __pycache__/
 detection/dataset/images/
 detection/dataset/labels/
 preprocessing/crops
+
+/test_crops/
+/test_sticker_crops/

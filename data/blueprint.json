@@ -8,10 +8,10 @@
     {"slot_id": "R1-S7", "zone": "DIS", "expected_calibre": "16", "expected_identification": "91Q01", "position_index": 7},
     {"slot_id": "R1-S8", "zone": "DIS", "expected_calibre": "5", "expected_identification": "91Q05", "position_index": 8},
     {"slot_id": "R1-S9", "zone": "DIS", "expected_calibre": "5", "expected_identification": "91Q06", "position_index": 9},
-    {"slot_id": "R1-S10", "zone": "SCMT", "expected_calibre": "15", "expected_identification": "94Q01", "position_index": 10},
+    {"slot_id": "R1-S10", "zone": "SCMT", "expected_calibre": "15-15", "expected_identification": "94Q01", "position_index": 10},
     {"slot_id": "R1-S11", "zone": "SCMT", "expected_calibre": "15", "expected_identification": "94Q02", "position_index": 11},
     {"slot_id": "R1-S12", "zone": "SCMT", "expected_calibre": "5", "expected_identification": "94Q03", "position_index": 12},
-    {"slot_id": "R1-S13", "zone": "SCMT", "expected_calibre": "5", "expected_identification": "94Q04", "position_index": 13},
+    {"slot_id": "R1-S13", "zone": "SCMT", "expected_calibre": "4-4", "expected_identification": "94Q04", "position_index": 13},
     {"slot_id": "R1-S14", "zone": "RADIO", "expected_calibre": "4", "expected_identification": "62Q25", "position_index": 14},
     {"slot_id": "R1-S15", "zone": "RADIO", "expected_calibre": "4", "expected_identification": "62Q27", "position_index": 15},
     {"slot_id": "R1-S16", "zone": "RADIO", "expected_calibre": "3", "expected_identification": "62Q28", "position_index": 16}

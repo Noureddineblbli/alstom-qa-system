@@ -1,57 +1,49 @@
 import cv2
 import os
-import numpy as np
 
-def extract_crops(image_path, mapped_pairs, start_idx=0):
+CROPS_DIR = os.path.join(os.path.dirname(__file__), 'crops')
+
+
+def crop_box(image, box):
+    x1, y1, x2, y2 = map(int, box)
+    # Add a small padding to not cut off text
+    h, w = image.shape[:2]
+    x1, y1 = max(0, x1-2), max(0, y1-2)
+    x2, y2 = min(w, x2+2), min(h, y2+2)
+    return image[y1:y2, x1:x2]
+
+
+def extract_crops(image_path, mapped_pairs, slot_index):
     """
-    Slices the original image based on mapped_pairs and saves individual chips.
+    Extracts the sticker crop, and a crop for EVERY switch associated with that sticker.
+    Returns the file paths of the saved crops.
     """
-    # Load the image
     img = cv2.imread(image_path)
-    
     if img is None:
-        print(f"Error: Could not load image at {image_path}")
-        return
+        raise ValueError(f"Could not load image: {image_path}")
 
-    # Iterate through our grouped pairs from Step 2
-    for i, pair in enumerate(mapped_pairs):
-        idx = start_idx + i
-        # Extract coordinates [x1, y1, x2, y2]
-        s_box = pair['switch']['box'] # Switch
-        t_box = pair['sticker']['box'] # Sticker
-        
-        # NumPy/OpenCV works as [y1:y2, x1:x2]
-        # s_box[0]=x1, s_box[1]=y1, s_box[2]=x2, s_box[3]=y2
-        switch_crop = img[int(s_box[1]):int(s_box[3]), int(s_box[0]):int(s_box[2])]
-        sticker_crop = img[int(t_box[1]):int(t_box[3]), int(t_box[0]):int(t_box[2])]
-        
-        # Save them
-        cv2.imwrite(f"preprocessing/crops/pair_{idx}_switch.jpg", switch_crop)
-        cv2.imwrite(f"preprocessing/crops/pair_{idx}_sticker.jpg", sticker_crop)
-        
-        print(f"Saved crops for pair {idx}")
+    os.makedirs(CROPS_DIR, exist_ok=True)
 
-def run_test():
-    # 1. Create a "dummy" image (blank black image) 1000x1000 pixels
-    dummy_img = np.zeros((1000, 1000, 3), dtype=np.uint8)
-    
-    # 2. Add some "white boxes" into it so we can see if they are cropped correctly
-    # Let's say: Box 1 is from x:100, y:100 to x:300, y:300
-    dummy_img[100:300, 100:300] = 255 
-    cv2.imwrite("test_input.jpg", dummy_img)
-    
-    # 3. Simulate mapped pairs from Intern B (the pairing logic)
-    test_mapped_pairs = [
-        {"switch": {"id": "test_sw1", "box": [100, 100, 300, 300]}, 
-         "sticker": {"id": "test_st1", "box": [100, 100, 300, 300]}}
-    ]
-    
-    # 4. Run our extract_crops function
-    extract_crops("test_input.jpg", test_mapped_pairs)
-    print("Test run complete. Check the preprocessing/crops folder for .jpg files.")
+    # We only process ONE pair (slot) at a time in the current pipeline loop
+    pair = mapped_pairs[0]
 
-if __name__ == "__main__":
-    run_test()
+    # 1. Crop and save the Sticker
+    sticker_img = crop_box(img, pair["sticker"]['box'])
+    sticker_path = os.path.join(CROPS_DIR, f"pair_{slot_index}_sticker.jpg")
+    cv2.imwrite(sticker_path, sticker_img)
 
-# We don't need a main execution block just yet, 
-# as this will be called by your master processing pipeline.
+    # 2. Crop and save ALL Switches for this slot
+    switch_paths = []
+    for i, switch in enumerate(pair["switches"]):
+        switch_img = crop_box(img, switch['box'])
+
+        # If there's only 1 switch, name it normally. If multiple, add _1, _2, etc.
+        suffix = f"_{i+1}" if len(pair["switches"]) > 1 else ""
+        switch_path = os.path.join(
+            CROPS_DIR, f"pair_{slot_index}_switch{suffix}.jpg")
+
+        cv2.imwrite(switch_path, switch_img)
+        switch_paths.append(switch_path)
+
+    # Return the sticker path and the LIST of switch paths
+    return sticker_path, switch_paths

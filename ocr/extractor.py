@@ -16,18 +16,16 @@ def get_calibre_text(crop_image_path):
     global _easyocr_reader
     if _easyocr_reader is None:
         _easyocr_reader = easyocr.Reader(['en'], gpu=False)
-
+    
     img = cv2.imread(crop_image_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         return None, 0.0
-
-    result = _easyocr_reader.readtext(
-        img, allowlist='0123456789', mag_ratio=2.5)
-
+    
+    result = _easyocr_reader.readtext(img, allowlist='0123456789', mag_ratio=2.5)
+    
     if result:
         return result[0][1], result[0][2]
     return None, 0.0
-
 
 logging.getLogger("ppocr").setLevel(logging.ERROR)
 
@@ -40,41 +38,31 @@ ocr_model = PaddleOCR(
 
 def get_raw_text(crop_image_path):
     """
-    Passes a cropped image to PaddleOCR, reads all text, 
-    and returns ONLY the first word (the identifier) and the highest confidence score.
+    Passes a cropped image to PaddleOCR and returns the highest-confidence text.
     """
-    result = ocr_model.ocr(crop_image_path, cls=True)
+    result = ocr_model.ocr(crop_image_path, cls=True)  # .ocr() not .predict()
 
     # Guard against empty or None results
     if not result or result[0] is None:
         return None, 0.0
 
     lines = result[0]
-    extracted_words = []
-    highest_conf = 0.0
+
+    highest_conf = -1.0
+    best_text = ""
 
     for line in lines:
         try:
             text = line[1][0]
             confidence = line[1][1]
-            extracted_words.append(text)
-
-            # Keep track of the highest confidence found in the sticker
-            if confidence > highest_conf:
-                highest_conf = confidence
-
         except (IndexError, TypeError):
             continue
 
-    # If no text was found at all
-    if not extracted_words:
-        return None, 0.0
+        if confidence > highest_conf:
+            highest_conf = confidence
+            best_text = text
 
-    # Join everything into one string, then split by spaces to get the first word
-    full_text = " ".join(extracted_words)
-    first_word = full_text.split()[0]git
-
-    return first_word, highest_conf
+    return best_text, highest_conf
 
 
 # --- TEST BLOCK ---
