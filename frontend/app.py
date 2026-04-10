@@ -1,14 +1,9 @@
 import streamlit as st
 import requests
 from pathlib import Path
-import time
 import json
 import os
 import sys
-
-# Ensure we can import from the frontend directory
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from camera import capture_frame
 
 # Page configuration
 st.set_page_config(
@@ -19,7 +14,7 @@ st.set_page_config(
 
 # Title
 st.title("🔍 Alstom QA System - Row Validator")
-st.write("Capture a factory row image using your camera for automatic component validation")
+st.write("Upload a factory row image for automatic component validation")
 
 # Load blueprint directly from JSON file
 blueprint_path = Path(__file__).parent.parent / "data" / "blueprint.json"
@@ -33,8 +28,7 @@ def load_blueprint():
             # Convert list to dictionary format for easier lookup
             blueprint_dict = {}
             for slot in data:
-                row_id = slot.get('slot_id', '').split(
-                    '-')[0]  # e.g., "R1" from "R1-S1"
+                row_id = slot.get('slot_id', '').split('-')[0]  # e.g., "R1" from "R1-S1"
                 if row_id not in blueprint_dict:
                     blueprint_dict[row_id] = {'slots': []}
                 blueprint_dict[row_id]['slots'].append(slot)
@@ -51,14 +45,11 @@ blueprint = load_blueprint()
 def get_expected_values(slot_id):
     """Get expected calibre and identification for a slot from blueprint"""
     try:
-        # Extract slot info from blueprint
-        # Format is like "R1-S1" so we need to parse it
         parts = slot_id.split('-')
         if len(parts) == 2:
-            row_num = parts[0]  # e.g., "R1"
-            slot_num = int(parts[1][1:])  # e.g., "S1" -> 1
+            row_num = parts[0]
+            slot_num = int(parts[1][1:])
 
-            # Get from blueprint
             if row_num in blueprint:
                 slots = blueprint[row_num].get('slots', [])
                 if slot_num <= len(slots):
@@ -81,20 +72,6 @@ def display_result_card(slot_result):
     scanned_id = slot_result.get('scanned_identification', 'N/A')
     message = slot_result.get('message', '')
 
-    # Determine color based on status
-    if status == 'PASS':
-        color = '#00CC44'  # Green
-        bg_color = '#E8F5E9'
-        emoji = '✅'
-    elif 'FAIL' in status:
-        color = '#FF3333'  # Red
-        bg_color = '#FFEBEE'
-        emoji = '❌'
-    else:
-        color = '#FF9800'  # Orange for ERROR
-        bg_color = '#FFF3E0'
-        emoji = '⚠️'
-
     # Create card with columns
     col1, col2 = st.columns([1, 4])
 
@@ -109,11 +86,9 @@ def display_result_card(slot_result):
     with col2:
         st.subheader(f"{slot_id}")
 
-        # Show scanned values
         st.write(f"**Scanned Calibre:** `{scanned_calibre}`")
         st.write(f"**Scanned ID:** `{scanned_id}`")
 
-        # Show expected values for FAIL statuses
         if 'FAIL' in status:
             expected = get_expected_values(slot_id)
             st.divider()
@@ -145,27 +120,28 @@ row_id = st.sidebar.number_input(
     help="Which row number are you scanning?"
 )
 
-# Initialize session state for the captured image
-if 'capture_path' not in st.session_state:
-    st.session_state['capture_path'] = None
+# Initialize session state for the image
+if 'image_path' not in st.session_state:
+    st.session_state['image_path'] = None
 
-st.sidebar.header("Camera Input")
+st.sidebar.header("Image Upload")
 
-# Button to trigger OpenCV Camera
-if st.sidebar.button("📸 Capture Image", use_container_width=True):
-    st.sidebar.info("Look for the camera window! Press Spacebar to capture.")
+# Streamlit File Uploader
+uploaded_file = st.sidebar.file_uploader("Upload an image of the row", type=["jpg", "jpeg", "png"])
+
+if uploaded_file is not None:
+    # Save the uploaded file to a temporary location so the backend can read it
+    temp_dir = Path("frontend")
+    temp_dir.mkdir(exist_ok=True)
+    temp_path = temp_dir / "temp_uploaded_image.jpg"
     
-    # Call our new function
-    captured_path = capture_frame()
+    with open(temp_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+        
+    st.session_state['image_path'] = str(temp_path)
     
-    # Save to session state so it doesn't disappear when Streamlit reruns
-    if captured_path:
-        st.session_state['capture_path'] = captured_path
-
-# Show the preview in the sidebar if an image was captured
-if st.session_state['capture_path'] and os.path.exists(st.session_state['capture_path']):
-    st.sidebar.success("Image ready for scanning!")
-    st.sidebar.image(st.session_state['capture_path'], caption="Captured Frame")
+    st.sidebar.success("Image uploaded successfully!")
+    st.sidebar.image(uploaded_file, caption="Preview", use_container_width=True)
 
 
 # --- Main Content Area ---
@@ -176,15 +152,13 @@ with col2:
 
 # Handle scan button click
 if scan_button:
-    if not st.session_state['capture_path']:
-        st.error("❌ Please capture an image first using the sidebar button!")
+    if not st.session_state['image_path']:
+        st.error("❌ Please upload an image first using the sidebar!")
     else:
-        image_to_scan = st.session_state['capture_path']
+        image_to_scan = st.session_state['image_path']
 
-        # Show loading spinner and make API call
         with st.spinner("🔄 Processing image... This may take a moment"):
             try:
-                # Send POST request to FastAPI
                 response = requests.post(
                     "http://localhost:8000/api/validate_slot",
                     json={
@@ -197,21 +171,17 @@ if scan_button:
                     results = response.json()
                     validation_results = results.get('validation_results', [])
                     
-                    # NEW CHECK: Did YOLO actually find anything?
                     if len(validation_results) == 0:
-                        st.warning("⚠️ No panel components detected! Please ensure the camera is pointed clearly at the switches and stickers, then try capturing again.")
+                        st.warning("⚠️ No panel components detected! Please try uploading a different image.")
                     else:
                         st.success("✅ Validation Complete!")
 
-                        # Display results header
                         st.markdown("---")
                         st.subheader(f"📋 Validation Results for {results.get('row_id', 'Row')}")
 
-                        # Count pass/fail
                         pass_count = sum(1 for r in validation_results if r.get('status') == 'PASS')
                         fail_count = len(validation_results) - pass_count
 
-                        # Summary metrics
                         col1, col2, col3 = st.columns(3)
                         with col1:
                             st.metric("Total Slots", len(validation_results))
@@ -222,15 +192,15 @@ if scan_button:
 
                         st.markdown("---")
 
-                        # Display individual slot cards
                         st.subheader("Slot Details")
                         for slot_result in validation_results:
                             display_result_card(slot_result)
-                
                 
                 else:
                     st.error(f"❌ API Error: {response.status_code}")
                     st.write(response.text)
 
+            except requests.exceptions.ConnectionError:
+                st.error("❌ Connection Error: Could not connect to the backend server. Is `uvicorn backend.main:app --reload` running in another terminal?")
             except Exception as e:
-                st.error(f"❌ Connection Error: {str(e)}")
+                st.error(f"❌ Error: {str(e)}")

@@ -54,15 +54,25 @@ def run_pipeline(image_path):
 
     for result in yolo_results:
         for i, box in enumerate(result.boxes):
+            # 1. Filter out low confidence hallucinations (below 48%)
+            confidence = float(box.conf)
+            if confidence < 0.48:
+                continue
+
             class_id = int(box.cls)
             class_name = result.names[class_id]
             x1, y1, x2, y2 = box.xyxy[0].tolist()
+
             detection = {"id": f"{class_name}_{i}",
                          "label": class_name, "box": [x1, y1, x2, y2]}
+
             if class_name == "switch":
                 switches.append(detection)
             else:
                 stickers.append(detection)
+
+    print(
+        f"\n🔍 [YOLO] Detected {len(switches)} switches and {len(stickers)} stickers in the image!")
 
     # Step 2: Group by row
     switch_rows = group_by_row(switches)
@@ -85,31 +95,48 @@ def run_pipeline(image_path):
         pairs = match_stickers_to_switches(sticker_row, switch_row)
 
         # Step 4: Crop, filter, OCR, validate
+        # Step 4: Crop, filter, OCR, validate
         for slot_idx, pair in enumerate(pairs):
             slot_id = f"{row_id}-S{slot_idx + 1}"
             slot_counter += 1
 
-            switch_crop_path = os.path.join(
-                CROPS_DIR, f"pair_{slot_counter}_switch.jpg")
-            sticker_crop_path = os.path.join(
-                CROPS_DIR, f"pair_{slot_counter}_sticker.jpg")
-            extract_crops(image_path, [pair], slot_counter)
+            # 1. Extract the crops dynamically
+            sticker_crop_path, switch_paths = extract_crops(
+                image_path, [pair], slot_counter)
 
+            # 2. Process the Sticker ID
             _, _, cleaned_sticker_path = clean_for_ocr(sticker_crop_path)
-
             raw_id, _ = get_raw_text(cleaned_sticker_path)
-            cleaned_switch_path = clean_switch_for_calibre(switch_crop_path)
-            raw_calibre, _ = get_calibre_text(cleaned_switch_path)
-
+            if slot_id == "R1-S4":
+                print(f"\n--- DEBUG S4 ---")
+                print(f"RAW OCR for S4: '{raw_id}'")
+                print(f"----------------\n")
             clean_id = format_identification(raw_id) if raw_id else ""
-            clean_calibre = format_calibre(raw_calibre) if raw_calibre else ""
 
-            validation = check_assembly(slot_id, clean_calibre, clean_id)
+            # 3. Process ALL Switches in this slot
+            clean_calibres = []
+            for switch_path in switch_paths:
+                cleaned_switch_path = clean_switch_for_calibre(switch_path)
+                raw_calibre, _ = get_calibre_text(cleaned_switch_path)
+                formatted_calibre = format_calibre(
+                    raw_calibre) if raw_calibre else ""
+
+                if formatted_calibre:
+                    clean_calibres.append(formatted_calibre)
+                else:
+                    clean_calibres.append("?")  # Placeholder if OCR fails
+
+            # Join multiple calibres with a dash (e.g., "15-15") if it's a double slot
+            # Or just keep it as a single string (e.g., "5") if it's a normal slot
+            final_calibre = "-".join(clean_calibres)
+
+            # 4. Validate
+            validation = check_assembly(slot_id, final_calibre, clean_id)
 
             results.append({
                 "slot_id": slot_id,
                 "status": validation["status"],
-                "scanned_calibre": clean_calibre,
+                "scanned_calibre": final_calibre,
                 "scanned_identification": clean_id,
                 "expected_calibre": validation["expected"]["calibre"],
                 "expected_identification": validation["expected"]["identification"],
