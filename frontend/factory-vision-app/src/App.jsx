@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import Header from './components/Header';
-import Footer from './components/Footer';
 import SelectionScreen from './components/SelectionScreen';
 import CameraScreen from './components/CameraScreen';
 import ResultsScreen from './components/ResultsScreen';
@@ -14,9 +13,6 @@ export default function App() {
   const [capturedImage, setCapturedImage] = useState(null);
   const [inspectionResult, setInspectionResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const validComment = 'This Slot is Valid';
-  const wrongCalibre = 'This calibre is wrong';
-  const wrongId = 'This ID is wrong';
 
   const handleCapture = (imageData) => {
     setCapturedImage(imageData);
@@ -54,16 +50,6 @@ export default function App() {
         details: response.data.validation_results
       };
 
-      // const result = {
-      //   status: 'Not Valid',
-      //   // score: 0.85 + Math.random() * 0.14,
-      //   details: [
-      //     { label: '76Q01', expected: '1 A', actual: '1 A', match: true, comment: validComment },
-      //     { label: '76Q02', expected: '3 A', actual: '3 A', match: true, comment: validComment },
-      //     { label: '94Q05', expected: '10 A', actual: '15 A', match: true, comment: wrongCalibre },
-      //     { label: '95Q08', expected: '1 A', actual: '1 A', match: true, comment: validComment },
-      //   ]
-      // };
       setInspectionResult(result);
       setIsAnalyzing(false);
       setStep('RESULTS');

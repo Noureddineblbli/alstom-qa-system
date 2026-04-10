@@ -48,13 +48,10 @@ export default function ResultsScreen({
           <h2 className="text-3xl font-bold uppercase tracking-tight">
             {inspectionResult.status === 'Valid' ? 'Valid Panel' : 'Invalid Panel'}
           </h2>
-          {/* <p className="text-white/60">
-            Confidence Score: <span className="font-mono text-white">{(inspectionResult.score * 100).toFixed(1)}%</span>
-          </p> */}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Captured Image Preview */}
         <div className="space-y-3">
           <label className="text-[10px] font-mono uppercase text-white/40 tracking-widest">Captured Frame</label>
@@ -81,11 +78,6 @@ export default function ResultsScreen({
                     <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Expected Calibre</th>
                     <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Status</th>
                     <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Message</th>
-                    {/* <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Label</th>
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Expected</th>
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Actual</th>
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Match</th>                   
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">comment</th> */}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -98,21 +90,6 @@ export default function ResultsScreen({
                       <td className="p-3 font-mono text-center">{detail.expected_calibre}</td>
                       <td className="p-3 font-mono text-center">{detail.status}</td>
                       <td className="p-3 font-mono text-center">{detail.message}</td>
-                      {/* <td className="p-3 font-medium">{detail.label}</td>
-                      <td className="p-3 font-mono text-center">{detail.expected}</td>
-                      <td className="p-3 font-mono text-center">{detail.actual}</td> */}
-                      {/* <td className="p-3 text-right">
-                        {detail.expected === detail.actual ? <div> Valid <CheckCircle2 className="w-4 h-4 text-green-500 inline" /></div>
-                        : 
-                        <div> Not Valid <AlertCircle className="w-4 h-4 text-red-500 inline" /></div>
-                        }
-                      </td>
-                      <td className="p-3 font-mono text-center">
-                        {detail.expected === detail.actual ? <p> This Slot is Valid </p>
-                        : 
-                        <p> The calibres dont match </p>
-                        }
-                      </td> */}
                     </tr>
                   ))}
                 </tbody>
