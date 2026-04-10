@@ -110,7 +110,7 @@ export default function CameraScreen({
         
         {/* Alignment Guide Overlay */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div ref={frameRef} className="relative w-[80%] max-w-[600px] aspect-[4/3] border-2 border-white/20 rounded-lg">
+          <div ref={frameRef} className="relative w-[80%] max-w-[600px] h-[80%] aspect-[4/3] border-2 border-white/20 rounded-lg">
             {/* Corner Accents */}
             <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-md" />
             <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-md" />
@@ -155,12 +155,12 @@ export default function CameraScreen({
       </div>
 
       {/* Camera Controls */}
-      <div className="p-10 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-12 z-10">
+      <div className="p-10 h-20 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-12 z-10">
         
         <button 
           onClick={handleCaptureClick}
           disabled={isAnalyzing}
-          className="w-20 h-20 bg-white rounded-full p-1 border-4 border-white/20 flex items-center justify-center active:scale-90 transition-transform disabled:opacity-50"
+          className="w-20 h-15 bg-white rounded-full p-1 border-4 border-white/20 flex items-center justify-center active:scale-90 transition-transform disabled:opacity-50"
         >
           <div className="w-full h-full bg-white rounded-full border-2 border-black" />
         </button>

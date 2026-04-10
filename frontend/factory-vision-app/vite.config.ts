@@ -22,7 +22,10 @@ export default defineConfig(({mode}) => {
       host: true, // allow external access
       allowedHosts: [
         'vashti-kilometrical-lili.ngrok-free.dev'
-      ]
+      ],
+      proxy: {
+      '/api': 'http://localhost:8000'
+      }
     },
   };
 });

@@ -5,7 +5,7 @@ import Footer from './components/Footer';
 import SelectionScreen from './components/SelectionScreen';
 import CameraScreen from './components/CameraScreen';
 import ResultsScreen from './components/ResultsScreen';
-import axios from './api/axios';
+import axios from './api/api';
 
 export default function App() {
   const [step, setStep] = useState('SELECTION');
@@ -24,31 +24,46 @@ export default function App() {
     
     // Simulate AI analysis
     setTimeout(async () => {
-      // const formData = new FormData();
-      // formData.append("file", imageData);
+      const blob = await (await fetch(imageData)).blob();
 
-      // const response = await axios.post("/api/validate_slot",
-      //     JSON.stringify({file: formData, row_id: "1"}),
-      //     {
-      //         headers: { 'Content-Type': 'application/json' },
-      //         withCredentials: true
-      //     } 
-      // );
-      // const hasFailure = data.validation_results.some(
-      //   (item) => item.status !== "PASS"
-      // );
+      const formData = new FormData();
+      formData.append("file", blob, "image.jpg"); // IMPORTANT: must be Blob/File
+      formData.append("row_id", "1");
 
-      // state = (hasFailure ? "Not valid" : "Valid");
+      const response = await axios.post(
+        "/api/validate_slot",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          withCredentials: true,
+        }
+      );
+
+      console.log("API Response:", response.data);
+      
+      const state = response.data.validation_results.some(
+        item => item.status !== "PASS"
+      )  ? "Not Valid" : "Valid";
+
+      console.log("API Response:", response.data);
+      
       const result = {
-        status: 'mismatch',
-        // score: 0.85 + Math.random() * 0.14,
-        details: [
-          { label: '76Q01', expected: '1 A', actual: '1 A', match: true, comment: validComment },
-          { label: '76Q02', expected: '3 A', actual: '3 A', match: true, comment: validComment },
-          { label: '94Q05', expected: '10 A', actual: '15 A', match: true, comment: wrongCalibre },
-          { label: '95Q08', expected: '1 A', actual: '1 A', match: true, comment: validComment },
-        ]
+        status: "Not Valid",//state,
+        details: response.data.validation_results
       };
+
+      // const result = {
+      //   status: 'Not Valid',
+      //   // score: 0.85 + Math.random() * 0.14,
+      //   details: [
+      //     { label: '76Q01', expected: '1 A', actual: '1 A', match: true, comment: validComment },
+      //     { label: '76Q02', expected: '3 A', actual: '3 A', match: true, comment: validComment },
+      //     { label: '94Q05', expected: '10 A', actual: '15 A', match: true, comment: wrongCalibre },
+      //     { label: '95Q08', expected: '1 A', actual: '1 A', match: true, comment: validComment },
+      //   ]
+      // };
       setInspectionResult(result);
       setIsAnalyzing(false);
       setStep('RESULTS');

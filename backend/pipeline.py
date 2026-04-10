@@ -46,6 +46,9 @@ def run_pipeline(image_path):
     model = YOLO(WEIGHTS_PATH)
     yolo_results = model(image_path)
 
+    print("Count YOLO Detection Results:")
+    print(len(yolo_results[0].boxes))
+
     switches = []
     stickers = []
 

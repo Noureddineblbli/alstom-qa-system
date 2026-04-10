@@ -8,7 +8,6 @@ import cv2
 os.add_dll_directory(os.path.join(
     sys.prefix, 'Lib', 'site-packages', 'torch', 'lib'))
 
-
 _easyocr_reader = None
 
 
@@ -31,8 +30,7 @@ logging.getLogger("ppocr").setLevel(logging.ERROR)
 
 ocr_model = PaddleOCR(
     use_angle_cls=True,   # replaces use_textline_orientation
-    lang='en',
-    use_gpu=False         # replaces device='cpu'
+    lang='en'
 )
 
 
@@ -40,7 +38,7 @@ def get_raw_text(crop_image_path):
     """
     Passes a cropped image to PaddleOCR and returns the highest-confidence text.
     """
-    result = ocr_model.ocr(crop_image_path, cls=True)  # .ocr() not .predict()
+    result = ocr_model.predict(crop_image_path)  # .ocr() not .predict()
 
     # Guard against empty or None results
     if not result or result[0] is None:

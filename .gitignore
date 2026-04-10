@@ -3,6 +3,11 @@ __pycache__/
 *.pyc
 .env
 
+env311/
+
 detection/dataset/images/
 detection/dataset/labels/
 preprocessing/crops
+
+frontend/pictures/*
+!frontend/pictures/.gitkeep
