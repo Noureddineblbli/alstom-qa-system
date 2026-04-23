@@ -15,7 +15,7 @@ export default function CameraScreen({
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+        video: { facingMode: 'environment', width: { ideal: 4096 }, height: { ideal: 3072 }, aspectRatio: 4/3, advanced: [{ width: 4096, height: 3072 }] } 
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -42,37 +42,46 @@ export default function CameraScreen({
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const frame = frameRef.current;
+    // const frame = frameRef.current;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // DOM rects
-    const videoRect = video.getBoundingClientRect();
-    const frameRect = frame.getBoundingClientRect();
+    // // DOM rects
+    // const videoRect = video.getBoundingClientRect();
+    // const frameRect = frame.getBoundingClientRect();
 
-    // Scale from displayed size → actual video pixels
-    const scaleX = video.videoWidth / videoRect.width;
-    const scaleY = video.videoHeight / videoRect.height;
+    // // Scale from displayed size → actual video pixels
+    // const scaleX = video.videoWidth / videoRect.width;
+    // const scaleY = video.videoHeight / videoRect.height;
 
-    // Compute crop area in video pixels
-    const sx = (frameRect.left - videoRect.left) * scaleX;
-    const sy = (frameRect.top - videoRect.top) * scaleY;
-    const sw = frameRect.width * scaleX;
-    const sh = frameRect.height * scaleY;
+    // // Compute crop area in video pixels
+    // const sx = Math.round((frameRect.left - videoRect.left) * scaleX);
+    // const sy = Math.round((frameRect.top  - videoRect.top)  * scaleY);
+    // const sw = Math.round(frameRect.width  * scaleX);
+    // const sh = Math.round(frameRect.height * scaleY);
 
-    // Set canvas size to cropped area
-    canvas.width = sw;
-    canvas.height = sh;
+    // // Set canvas size to cropped area
+    // canvas.width = sw;
+    // canvas.height = sh;
 
-    // Draw cropped region
+    // // Draw cropped region
+    // ctx.drawImage(
+    //   video,
+    //   sx, sy, sw, sh,   // source (crop)
+    //   0, 0, sw, sh      // destination
+    // );
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // Draw the entire video frame
     ctx.drawImage(
       video,
-      sx, sy, sw, sh,   // source (crop)
-      0, 0, sw, sh      // destination
+      0, 0, video.videoWidth, video.videoHeight
     );
 
-    const imageData = canvas.toDataURL('image/jpeg');
+    const imageData = canvas.toDataURL('image/jpeg', 1.0);
     onCapture(imageData);
   };
 

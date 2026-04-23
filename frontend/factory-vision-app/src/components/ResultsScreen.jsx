@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
 
 export default function ResultsScreen({ 
   inspectionResult, 
@@ -8,6 +8,32 @@ export default function ResultsScreen({
   onRetake, 
   onReset 
 }) {
+  const imgRef = useRef(null);
+  const rowRefs = useRef({});
+  const [scale, setScale] = useState({ x: 1, y: 1 });
+  const [selectedSlotId, setSelectedSlotId] = useState(null);
+
+  useEffect(() => {
+    const updateScale = () => {
+      const img = imgRef.current;
+      if (!img || !inspectionResult.image_width) return;
+      setScale({
+        x: img.offsetWidth  / inspectionResult.image_width,
+        y: img.offsetHeight / inspectionResult.image_height,
+      });
+    };
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, [capturedImage, inspectionResult]);
+
+  const handleBoxClick = (slotId) => {
+    setSelectedSlotId(prev => prev === slotId ? null : slotId);
+    rowRefs.current[slotId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const failures = inspectionResult.details.filter(d => d.status === 'FAIL');
+
   return (
     <motion.div 
       key="results"
@@ -23,10 +49,6 @@ export default function ResultsScreen({
         >
           <ArrowLeft className="w-4 h-4" /> Retake Image
         </button>
-        {/* <div className="text-right">
-          <p className="text-[10px] text-white/40 font-mono uppercase">Inspection ID</p>
-          <p className="text-xs font-mono">#QC-{Math.floor(Math.random() * 1000000)}</p>
-        </div> */}
       </div>
 
       {/* Status Banner */}
@@ -38,64 +60,131 @@ export default function ResultsScreen({
         <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
           inspectionResult.status === 'Valid' ? 'bg-green-500' : 'bg-red-500'
         }`}>
-          {inspectionResult.status === 'Valid' ? (
-            <CheckCircle2 className="w-10 h-10 text-white" />
-          ) : (
-            <XCircle className="w-10 h-10 text-white" />
-          )}
+          {inspectionResult.status === 'Valid' 
+            ? <CheckCircle2 className="w-10 h-10 text-white" />
+            : <XCircle className="w-10 h-10 text-white" />
+          }
         </div>
         <div>
           <h2 className="text-3xl font-bold uppercase tracking-tight">
             {inspectionResult.status === 'Valid' ? 'Valid Panel' : 'Invalid Panel'}
           </h2>
+          {failures.length > 0 && (
+            <p className="text-white/50 text-sm mt-1">
+              {failures.length} error{failures.length > 1 ? 's' : ''} — click a box to locate in table
+            </p>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        {/* Captured Image Preview */}
+
+        {/* Image with overlay boxes */}
         <div className="space-y-3">
-          <label className="text-[10px] font-mono uppercase text-white/40 tracking-widest">Captured Frame</label>
-          <div className="rounded-xl overflow-hidden border border-white/10 relative group w-full flex items-center justify-center">
-            <img src={capturedImage} alt="Captured" className="max-w-full max-h-[500px] object-contain" />
-            {/* <div className="absolute inset-0 bg-blue-500/10 mix-blend-overlay" /> */}
-            {/* Simulated detection boxes */}
-            {/* <div className="absolute top-1/4 left-1/4 w-1/2 h-1/2 border-2 border-blue-400/50 rounded animate-pulse" /> */}
+          <label className="text-[10px] font-mono uppercase text-white/40 tracking-widest">
+            Captured Frame
+          </label>
+          <div className="rounded-xl overflow-hidden border border-white/10 relative inline-flex w-full justify-center">
+            <div className="relative inline-block">
+              <img
+                ref={imgRef}
+                src={capturedImage}
+                alt="Captured"
+                className="max-w-full max-h-[500px] object-contain block"
+                onLoad={() => {
+                  const img = imgRef.current;
+                  if (!img || !inspectionResult.image_width) return;
+                  setScale({
+                    x: img.offsetWidth  / inspectionResult.image_width,
+                    y: img.offsetHeight / inspectionResult.image_height,
+                  });
+                }}
+              />
+
+              {failures.map(slot => {
+                  const x1 = slot.bbox.x1;
+                  const y1 = slot.bbox.y1;
+                  const x2 = slot.bbox.x2;
+                  const y2 = slot.bbox.y2;
+
+                  const isSelected = selectedSlotId === slot.slot_id;
+                  return (
+                    <div
+                      key={slot.slot_id}
+                      onClick={() => handleBoxClick(slot.slot_id)}
+                      style={{
+                        position: 'absolute',
+                        left:   x1 * scale.x,
+                        top:    y1 * scale.y,
+                        width:  (x2 - x1) * scale.x,
+                        height: (y2 - y1) * scale.y,
+                        boxSizing: 'border-box',
+                      }}
+                      className={`border-1 cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-yellow-400 bg-yellow-400/20'
+                          : 'border-red-500 bg-red-500/10 hover:bg-red-500/20'
+                      }`}
+                    >
+                      <span className={`absolute -top-2 left-0 text-[4px] font-mono px-0.5 leading-none whitespace-nowrap ${
+                        isSelected ? 'bg-yellow-400 text-black' : 'bg-red-500 text-white'
+                      }`}>
+                        {slot.slot_id}
+                      </span>
+                    </div>
+                  );     
+              })}
+            </div>
           </div>
         </div>
 
-        {/* Comparison Details */}
+        {/* Table */}
         <div className="space-y-3">
-          <label className="text-[10px] font-mono uppercase text-white/40 tracking-widest">Labels Breakdown</label>
-          <div className="bg-[#16191E] border border-white/5 rounded-xl w-full h-full overflow-x-auto">
-            <div className='overflow-x-auto'>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-white/5 bg-white/[0.02]">
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Slot Id</th>
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Scanned Identification</th>
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Expected Identification</th>
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Scanned Calibre</th>
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Expected Calibre</th>
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Status</th>
-                    <th className="text-center p-3 font-mono text-[10px] uppercase text-white/40">Message</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {inspectionResult.details.map((detail, idx) => (
-                    <tr key={idx} className="hover:bg-white/[0.01] transition-colors">
-                      <td className="p-3 font-medium">{detail.slot_id}</td>
-                      <td className="p-3 font-mono text-center">{detail.scanned_identification}</td>
-                      <td className="p-3 font-mono text-center">{detail.expected_identification}</td>
-                      <td className="p-3 font-mono text-center">{detail.scanned_calibre}</td>
-                      <td className="p-3 font-mono text-center">{detail.expected_calibre}</td>
-                      <td className="p-3 font-mono text-center">{detail.status}</td>
-                      <td className="p-3 font-mono text-center">{detail.message}</td>
-                    </tr>
+          <label className="text-[10px] font-mono uppercase text-white/40 tracking-widest">
+            Labels Breakdown
+          </label>
+          <div className="bg-[#16191E] border border-white/5 rounded-xl w-full overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/5 bg-white/[0.02]">
+                  {['Slot Id','Scanned ID','Expected ID','Scanned Cal.','Expected Cal.','Status','Message'].map(h => (
+                    <th key={h} className="text-center p-3 font-mono text-[10px] uppercase text-white/40">{h}</th>
                   ))}
-                </tbody>
-              </table>
-            </div>
-            </div>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {failures.map((detail, idx) => (
+                  <tr
+                    key={idx}
+                    ref={el => { if (detail.status === 'FAIL') rowRefs.current[detail.slot_id] = el; }}
+                    className={`transition-colors duration-300 ${
+                      selectedSlotId === detail.slot_id
+                        ? 'bg-yellow-400/10 outline outline-1 outline-yellow-400/40'
+                        : detail.status === 'FAIL'
+                          ? 'hover:bg-red-500/10'
+                          : 'hover:bg-white/[0.01]'
+                    }`}
+                  >
+                    <td className="p-3 font-medium">{detail.slot_id}</td>
+                    <td className="p-3 font-mono text-center">{detail.scanned_identification}</td>
+                    <td className="p-3 font-mono text-center">{detail.expected_identification}</td>
+                    <td className="p-3 font-mono text-center">{detail.scanned_calibre}</td>
+                    <td className="p-3 font-mono text-center">{detail.expected_calibre}</td>
+                    <td className="p-3 font-mono text-center">
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                        detail.status === 'PASS'
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {detail.status}
+                      </span>
+                    </td>
+                    <td className="p-3 font-mono text-center text-white/50 text-xs">{detail.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -106,11 +195,6 @@ export default function ResultsScreen({
         >
           NEW INSPECTION
         </button>
-        {/* <button 
-          className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold transition-all shadow-lg shadow-blue-900/20"
-        >
-          LOG & ARCHIVE
-        </button> */}
       </div>
     </motion.div>
   );
