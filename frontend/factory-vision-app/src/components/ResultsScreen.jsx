@@ -101,7 +101,7 @@ export default function ResultsScreen({
                 }}
               />
 
-              {failures.map(slot => {
+              {failures.filter(slot => slot.bbox !== null && slot.bbox !== undefined).map(slot => {
                   const x1 = slot.bbox.x1;
                   const y1 = slot.bbox.y1;
                   const x2 = slot.bbox.x2;

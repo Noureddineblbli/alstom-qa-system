@@ -9,7 +9,7 @@ export default function AuthPage({ onSubmit  }) {
     email: "",
     password: ""
   });
-  const users = []; // For demo purposes, to store registered users
+  const [users, setUsers] = useState([]); // For demo purposes, to store registered users
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -17,25 +17,44 @@ export default function AuthPage({ onSubmit  }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!isLogin){
-        users.push(form); // For demo purposes, add user to array
-        setForm({ name: "", email: "", password: "" }); // Reset form
-        setIsLogin(true); // Switch to login after signup
+
+    if (!isLogin) {
+      // Check if user already exists
+      const exists = users.find(u => u.email === form.email);
+      if (exists) {
+        alert("User already exists");
+        return;
+      }
+
+      // Add new user
+      setUsers(prevUsers => [...prevUsers, form]);
+
+      // Reset form
+      setForm({ name: "", email: "", password: "" });
+
+      // Switch to login
+      setIsLogin(true);
+    } else {
+      // Login logic
+      const user = users.find(
+        u => u.email === form.email && u.password === form.password
+      );
+
+      if (user) {
+        console.log("Login successful");
+        onSubmit && onSubmit();
+      } else {
+        alert("Invalid credentials");
+      }
     }
-    else {
-        const user = users.find(u => u.email === form.email && u.password === form.password);
-        if (user) {
-            console.log("Login successful");
-            onSubmit && onSubmit();
-        } else {
-            alert("Invalid credentials");
-        }
-    }
-    onSubmit && onSubmit();
+
+    // onSubmit && onSubmit();
     // 👉 Replace with your API call
-    console.log(isLogin ? "Login" : "Signup", form);
+    // console.log(isLogin ? "Login" : "Signup", form);
 
     // onAuthSuccess && onAuthSuccess();
+
+    console.log("users", users);
   };
 
   return (

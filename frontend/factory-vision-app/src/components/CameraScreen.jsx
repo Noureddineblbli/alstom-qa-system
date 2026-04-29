@@ -1,12 +1,21 @@
 import React, { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Maximize2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Maximize2, RefreshCw, XCircle } from 'lucide-react';
 
 export default function CameraScreen({ 
   selectedReference, 
   onBack, 
   onCapture, 
-  isAnalyzing 
+  isAnalyzing,
+  mode,
+  label,
+  rowIndex,
+  rowCount,
+  processingRows,
+  rowResults,
+  currentRowIndex,
+  rowCaptureError,
+  onClearError
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -38,53 +47,71 @@ export default function CameraScreen({
   }, []);
 
   const handleCaptureClick = () => {
+    onClearError?.();
     if (!videoRef.current || !canvasRef.current || !frameRef.current) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    // const frame = frameRef.current;
-
+    const frame = frameRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // // DOM rects
-    // const videoRect = video.getBoundingClientRect();
-    // const frameRect = frame.getBoundingClientRect();
+    // Get rects
+    const videoRect = video.getBoundingClientRect();
+    const frameRect = frame.getBoundingClientRect();
 
-    // // Scale from displayed size → actual video pixels
-    // const scaleX = video.videoWidth / videoRect.width;
-    // const scaleY = video.videoHeight / videoRect.height;
+    // How much of the video is actually visible (object-cover crops it)
+    const videoAspect = video.videoWidth / video.videoHeight;
+    const displayAspect = videoRect.width / videoRect.height;
 
-    // // Compute crop area in video pixels
-    // const sx = Math.round((frameRect.left - videoRect.left) * scaleX);
-    // const sy = Math.round((frameRect.top  - videoRect.top)  * scaleY);
-    // const sw = Math.round(frameRect.width  * scaleX);
-    // const sh = Math.round(frameRect.height * scaleY);
+    let renderedWidth, renderedHeight, offsetX, offsetY;
 
-    // // Set canvas size to cropped area
-    // canvas.width = sw;
-    // canvas.height = sh;
+    if (videoAspect > displayAspect) {
+      // Video is wider than display — cropped on left/right
+      renderedHeight = videoRect.height;
+      renderedWidth = renderedHeight * videoAspect;
+      offsetX = (renderedWidth - videoRect.width) / 2;
+      offsetY = 0;
+    } else {
+      // Video is taller than display — cropped on top/bottom
+      renderedWidth = videoRect.width;
+      renderedHeight = renderedWidth / videoAspect;
+      offsetX = 0;
+      offsetY = (renderedHeight - videoRect.height) / 2;
+    }
 
-    // // Draw cropped region
-    // ctx.drawImage(
-    //   video,
-    //   sx, sy, sw, sh,   // source (crop)
-    //   0, 0, sw, sh      // destination
-    // );
+    // Scale from displayed pixels → actual video pixels
+    const scaleX = video.videoWidth / renderedWidth;
+    const scaleY = video.videoHeight / renderedHeight;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Frame position relative to video element top-left
+    const relLeft = frameRect.left - videoRect.left;
+    const relTop  = frameRect.top  - videoRect.top;
 
-    // Draw the entire video frame
+    // Crop area in actual video pixels (accounting for object-cover offset)
+    const sx = Math.round((relLeft + offsetX) * scaleX);
+    const sy = Math.round((relTop  + offsetY) * scaleY);
+    const sw = Math.round(frameRect.width  * scaleX);
+    const sh = Math.round(frameRect.height * scaleY);
+
+    // Clamp to video bounds
+    const clampedSx = Math.max(0, Math.min(sx, video.videoWidth));
+    const clampedSy = Math.max(0, Math.min(sy, video.videoHeight));
+    const clampedSw = Math.min(sw, video.videoWidth  - clampedSx);
+    const clampedSh = Math.min(sh, video.videoHeight - clampedSy);
+
+    canvas.width  = clampedSw;
+    canvas.height = clampedSh;
+
     ctx.drawImage(
       video,
-      0, 0, video.videoWidth, video.videoHeight
+      clampedSx, clampedSy, clampedSw, clampedSh,
+      0, 0, clampedSw, clampedSh
     );
 
     const imageData = canvas.toDataURL('image/jpeg', 1.0);
     onCapture(imageData);
   };
-
   return (
     <motion.div 
       key="camera"
@@ -94,6 +121,30 @@ export default function CameraScreen({
       className="fixed inset-0 z-[60] bg-black flex flex-col"
     >
       {/* Camera Header */}
+      {/* Row progress indicator */}
+      {mode === 'row' && (
+        <div className="absolute top-20 inset-x-0 flex justify-center gap-2 z-10">
+          {Array.from({ length: rowCount }, (_, i) => {
+            const rowNum = i + 1;
+            const isDone = rowNum < currentRowIndex && !processingRows.has(rowNum) && rowResults[rowNum] !== undefined;
+            const isProcessing = processingRows.has(rowNum);
+            const isCurrent = Number(currentRowIndex) === rowNum;
+            return (
+              <div
+                key={rowNum}
+                className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center transition-all ${
+                  isProcessing ? 'bg-yellow-500 text-black animate-pulse' :
+                  isDone       ? 'bg-green-500 text-white' :
+                  isCurrent    ? 'bg-blue-500 text-white scale-125' :
+                                 'bg-white/20 text-white/40'
+                }`}
+              >
+                {rowNum}
+              </div>
+            );
+          })}
+        </div>
+      )}
       <div className="absolute top-0 inset-x-0 p-6 flex items-center justify-between z-10 bg-gradient-to-b from-black/80 to-transparent">
         <button 
           onClick={onBack}
@@ -119,15 +170,27 @@ export default function CameraScreen({
         
         {/* Alignment Guide Overlay */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div ref={frameRef} className="relative w-[80%] max-w-[600px] h-[80%] aspect-[4/3] border-2 border-white/20 rounded-lg">
+          <div
+            ref={frameRef}
+            className={`relative border-2 border-white/20 rounded-lg ${
+              mode === 'row'
+                ? 'w-[80%] max-w-[1500px] h-[40%]'  // wide
+                : 'w-[90%] max-w-[800px] h-[80%]'  // original
+            }`}
+            style={ { aspectRatio: '4/3' }   // original
+              // mode === 'row'
+              //   ? { aspectRatio: '6/1' }   // very wide, short — like a panel row
+              //   : 
+            }
+          >
             {/* Corner Accents */}
             <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-md" />
             <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-md" />
             <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-md" />
             <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-md" />
-            
+
             {/* Scanning Line Animation */}
-            <motion.div 
+            <motion.div
               animate={{ top: ['0%', '100%', '0%'] }}
               transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
               className="absolute left-0 right-0 h-0.5 bg-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.8)] z-10"
@@ -139,9 +202,9 @@ export default function CameraScreen({
               <div className="h-10 w-px bg-white absolute" />
             </div>
 
-            <div className="absolute -bottom-12 left-0 right-0 text-center">
+            <div className="absolute -bottom-8 left-0 right-0 text-center">
               <p className="text-xs font-mono uppercase tracking-widest text-white/60 bg-black/40 backdrop-blur-md py-1 rounded-full inline-block px-4">
-                Align panel within frame
+                {mode === 'row' ? `Align row ${rowIndex} within frame` : 'Align panel within frame'}
               </p>
             </div>
           </div>
@@ -162,6 +225,18 @@ export default function CameraScreen({
           )}
         </AnimatePresence>
       </div>
+      {rowCaptureError && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute bottom-32 inset-x-0 flex justify-center px-6 z-10"
+        >
+          <div className="bg-red-500/20 border border-red-500/50 rounded-xl px-6 py-3 flex items-center gap-3">
+            <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+            <p className="text-sm text-red-300 font-mono">{rowCaptureError}</p>
+          </div>
+        </motion.div>
+      )}
 
       {/* Camera Controls */}
       <div className="p-10 h-20 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-12 z-10">

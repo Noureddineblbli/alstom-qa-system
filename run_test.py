@@ -12,7 +12,7 @@ import json
 # ─────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────
-IMAGE_PATH         = "172.JPG"
+IMAGE_PATH         = "9ae5ebcc-6e3a-4400-999c-e45e1abdf40c.jpg"
 DETECTION_MODEL    = "detection/weights/sticker_switch_detection.pt"
 DIGIT_MODEL        = "detection/digit_recognition.pt"
 STICKER_CLASS_NAME = "sticker"
@@ -202,7 +202,7 @@ def clean_for_ocr(image):
 def read_sticker_text(image, box):
     sticker_crop = crop(image, box)
     cleaned_image = clean_for_ocr(sticker_crop)
-    result       = ocr.ocr(cleaned_image, cls=True)
+    result       = ocr.predict(cleaned_image)
     full_text    = ""
     if result and result[0]:
         lines     = [line[1][0] for line in result[0] if line[1][0]]
@@ -289,32 +289,34 @@ def draw_debug(image, all_boxes):
     print(f"[DEBUG] Stickers    : {sum(1 for b in all_boxes if b['class_name'] == 'sticker')}")
     print(f"[DEBUG] Switches    : {sum(1 for b in all_boxes if b['class_name'] == 'switch')}")
 
-# ─────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────
 
-def analyse_panel(image_path):
+def scan_panel_overview(image_path):
+    """
+    Runs detection on the full panel overview image.
+    Returns:
+      - row_count: number of sticker/switch row pairs
+      - position_map: dict of slot_id -> bbox in the overview image
+    """
     image = cv2.imread(image_path)
     if image is None:
-        raise FileNotFoundError(f"Image not found")
+        raise FileNotFoundError("Image not found")
 
-    # ── Detect ───────────────────────────────────────────────────────────────
+    # Detect
     det_results = detect_model(image, verbose=False)
-    all_boxes   = []
+    all_boxes = []
     for r in det_results:
         for det in r.boxes:
-            cls_id     = int(det.cls[0])
+            cls_id = int(det.cls[0])
             class_name = detect_model.names[cls_id]
             x1, y1, x2, y2 = det.xyxy[0].tolist()
             conf = float(det.conf[0])
             all_boxes.append({
-                "x1": x1, "y1": y1,
-                "x2": x2, "y2": y2,
-                "class_name": class_name,
-                "conf": conf
+                "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                "class_name": class_name, "conf": conf
             })
     all_boxes = [b for b in all_boxes if b["conf"] >= 0.7]
-    # ── Filter out empty slots masquerading as switches ───────────────────
+
+    # Filter fake switches
     filtered_boxes = []
     for box in all_boxes:
         if box["class_name"] == SWITCH_CLASS_NAME:
@@ -323,121 +325,127 @@ def analyse_panel(image_path):
         else:
             filtered_boxes.append(box)
     all_boxes = filtered_boxes
-    draw_debug(image, all_boxes)
 
     if not all_boxes:
-        print("No objects detected.")
-        return
+        return 0, {}
 
-    # ── Smart row grouping ────────────────────────────────────────────────────
+    # Group into rows and pairs
     rows = group_into_rows_smart(all_boxes)
-
-    # ── Sequential pairing ────────────────────────────────────────────────────
     row_pairs = pair_rows_sequential(rows)
 
-    # ── Load reference ────────────────────────────────────────────────────────
-    ref_lookup   = build_validation_lookup(REFERENCE_JSON)
-    total        = 0
-    total_failed = 0
-    all_issues   = []
-    results      = []
-
-    # ── Print results with inline validation ──────────────────────────────────
-    print("=" * 70)
-    print(f"  PANEL ANALYSIS — {image_path}")
-    print(f"  Rows detected : {len(rows)}")
-    print(f"  Row pairs     : {len(row_pairs)}")
-    print("=" * 70)
+    position_map = {}
 
     for pair_idx, (sticker_row, switch_row) in enumerate(row_pairs, start=1):
-        print(f"\nRow Pair {pair_idx:02d}:")
-        print("-" * 60)
-
         if not sticker_row:
-            for idx, sw_box in enumerate(switch_row, start=1):
-                digit = read_switch_digit(image, sw_box)
-                print(f"  Record {idx:02d}: UNKNOWN: [{digit}]")
             continue
-
         pairs = pair_switches_to_stickers(sticker_row, switch_row)
+        for slot_idx, pair in enumerate(pairs, start=1):
+            slot_id = f"R{pair_idx}-S{slot_idx}"
+            # Use sticker bbox as the anchor (same as analyse_panel)
+            s = pair["sticker"]
+            position_map[slot_id] = {
+                "x1": s["x1"], "y1": s["y1"],
+                "x2": s["x2"], "y2": s["y2"]
+            }
 
+    h, w = image.shape[:2]
+    return len(row_pairs), position_map, h, w
+
+# ─────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────
+
+def analyse_panel(image_path, row_index):
+    """
+    row_index: which row pair this image corresponds to (1-based).
+               When processing the full panel, pass row_index=1 (default).
+               When processing a single row crop, pass the actual row number.
+    """
+
+    print("analysing row index:", row_index)
+    image = cv2.imread(image_path)
+    if image is None:
+        raise FileNotFoundError("Image not found")
+
+    det_results = detect_model(image, verbose=False)
+    all_boxes = []
+    for r in det_results:
+        for det in r.boxes:
+            cls_id = int(det.cls[0])
+            class_name = detect_model.names[cls_id]
+            x1, y1, x2, y2 = det.xyxy[0].tolist()
+            conf = float(det.conf[0])
+            all_boxes.append({
+                "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                "class_name": class_name, "conf": conf
+            })
+    all_boxes = [b for b in all_boxes if b["conf"] >= 0.7]
+
+    if not all_boxes:
+        raise ValueError("NO_DETECTIONS")
+
+
+    filtered_boxes = []
+    for box in all_boxes:
+        if box["class_name"] == SWITCH_CLASS_NAME:
+            if is_real_switch(image, box):
+                filtered_boxes.append(box)
+        else:
+            filtered_boxes.append(box)
+    all_boxes = filtered_boxes
+
+    if not all_boxes:
+        return [], *image.shape[:2]
+
+    rows = group_into_rows_smart(all_boxes)
+    row_pairs = pair_rows_sequential(rows)
+    ref_lookup = build_validation_lookup(REFERENCE_JSON)
+
+    results = []
+    total = 0
+    total_failed = 0
+
+    # ↓ KEY CHANGE: pair_idx starts at row_index instead of 1
+    for pair_idx, (sticker_row, switch_row) in enumerate(row_pairs, start=row_index):
+        if not sticker_row:
+            continue
+        pairs = pair_switches_to_stickers(sticker_row, switch_row)
         for idx, pair in enumerate(pairs, start=1):
-            slot_id      = f"R{pair_idx}-S{idx}"
+            slot_id = f"R{pair_idx}-S{idx}"
             sticker_code = read_sticker_text(image, pair["sticker"])
 
             if not pair["switches"]:
-                switch_str = "MISSING"
-                calibre    = "MISSING"
+                calibre = "MISSING"
             else:
-                digits     = [read_switch_digit(image, sw)
-                              for sw in pair["switches"]]
-                switch_str = ", ".join(digits)
-                calibre    = "-".join(digits) if len(digits) > 1 else digits[0]
+                digits = [read_switch_digit(image, sw) for sw in pair["switches"]]
+                calibre = "-".join(digits) if len(digits) > 1 else digits[0]
 
-            passed, issues = validate_record(
-                slot_id, sticker_code, calibre, ref_lookup
-            )
+            passed, issues = validate_record(slot_id, sticker_code, calibre, ref_lookup)
             total += 1
+            ref = ref_lookup.get(slot_id, {})
 
-            # bbox = {}
-            # if elements:
-            #     for e in elements:
-            #         bbox = {
-            #         "x1": pair[e]["x1"],
-            #         "y1": pair[e]["y1"],
-            #         "x2": pair[e]["x2"],
-            #         "y2": pair[e]["y2"] 
-            #     }
-
-            # ── Build result dict for frontend ────────────────────────────
-            ref     = ref_lookup.get(slot_id, {})
             results.append({
-                "slot_id":                slot_id,
-                "status":                 "PASS" if passed else "FAIL",
-                "scanned_calibre":        calibre,
+                "slot_id": slot_id,
+                "status": "PASS" if passed else "FAIL",
+                "scanned_calibre": calibre,
                 "scanned_identification": sticker_code,
-                "expected_calibre":       ref.get("expected_calibre", "?"),
+                "expected_calibre": ref.get("expected_calibre", "?"),
                 "expected_identification": ref.get("expected_identification", "?"),
-                "message":                " | ".join(issues) if issues else "OK",
-                    # ── ADD THIS ──────────────────────────────────────────
-                "bbox": {
-                    "x1": pair["sticker"]["x1"],
-                    "y1": pair["sticker"]["y1"],
-                    "x2": pair["sticker"]["x2"],
-                    "y2": pair["sticker"]["y2"] 
-                } if not passed else None
+                "message": " | ".join(issues) if issues else "OK",
+                "bbox": None  # bbox not needed for row images — position_map handles it
             })
 
-            if passed:
-                print(f"  Record {idx:02d}: {sticker_code}: [{switch_str}]  ✅")
-            else:
-                issue_str = "  |  ".join(issues)
-                print(f"  Record {idx:02d}: {sticker_code}: [{switch_str}]  ❌  {issue_str}")
+            if not passed:
                 total_failed += 1
-                all_issues.append(f"  [{slot_id}] {sticker_code}: [{switch_str}]")
-                for iss in issues:
-                    all_issues.append(f"    • {iss}")
-
-    # ── Final summary ─────────────────────────────────────────────────────────
-    print("\n" + "=" * 70)
-    print("  VALIDATION SUMMARY")
-    print("=" * 70)
-    if not all_issues:
-        print("  ✅ ALL RECORDS PASSED!")
-    else:
-        for line in all_issues:
-            print(line)
-    print("-" * 70)
-    print(f"  Total  : {total}")
-    print(f"  ✅ Passed : {total - total_failed}")
-    print(f"  ❌ Failed : {total_failed}")
-    print("=" * 70)
 
     h, w = image.shape[:2]
-
     return results, h, w
 
 
 if __name__ == "__main__":
     #image = cv2.imread(IMAGE_PATH)
-    analyse_panel(IMAGE_PATH)
+    results = analyse_panel(IMAGE_PATH, row_index=1)[0]
+
+    print(f"Total slots validated: {len(results)}")
+    for r in results:
+        print(f"{r['slot_id']} → {r['scanned_calibre']} | {r['scanned_identification']}")
