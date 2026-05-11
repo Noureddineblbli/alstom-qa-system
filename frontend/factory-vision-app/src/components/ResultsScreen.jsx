@@ -101,23 +101,48 @@ export default function ResultsScreen({
                 }}
               />
 
-              {failures.filter(slot => slot.bbox !== null && slot.bbox !== undefined).map(slot => {
-                  const x1 = slot.bbox.x1;
-                  const y1 = slot.bbox.y1;
-                  const x2 = slot.bbox.x2;
-                  const y2 = slot.bbox.y2;
+              {failures
+                .filter(slot => slot.bbox !== null && slot.bbox !== undefined)
+                .flatMap(slot => {
+                  const boxes = [];
+                  const where = slot.where ?? [];
 
-                  const isSelected = selectedSlotId === slot.slot_id;
+                  if (where.includes('sticker') && slot.bbox.sticker_x1 !== null) {
+                    boxes.push({
+                      slot_id: slot.slot_id,
+                      key: `${slot.slot_id}-sticker`,
+                      x1: slot.bbox.sticker_x1,
+                      y1: slot.bbox.sticker_y1,
+                      x2: slot.bbox.sticker_x2,
+                      y2: slot.bbox.sticker_y2,
+                    });
+                  }
+                  
+                  if (where.includes('switch') && slot.bbox.switch_x1 !== null) {
+                    boxes.push({
+                      slot_id: slot.slot_id,
+                      key: `${slot.slot_id}-switch`,
+                      x1: slot.bbox.switch_x1,
+                      y1: slot.bbox.switch_y1,
+                      x2: slot.bbox.switch_x2,
+                      y2: slot.bbox.switch_y2,
+                    });
+                  }
+
+                  return boxes;
+                })
+                .map(box => {
+                  const isSelected = selectedSlotId === box.slot_id;
                   return (
                     <div
-                      key={slot.slot_id}
-                      onClick={() => handleBoxClick(slot.slot_id)}
+                      key={box.key}
+                      onClick={() => handleBoxClick(box.slot_id)}
                       style={{
                         position: 'absolute',
-                        left:   x1 * scale.x,
-                        top:    y1 * scale.y,
-                        width:  (x2 - x1) * scale.x,
-                        height: (y2 - y1) * scale.y,
+                        left:   box.x1 * scale.x,
+                        top:    box.y1 * scale.y,
+                        width:  (box.x2 - box.x1) * scale.x,
+                        height: (box.y2 - box.y1) * scale.y,
                         boxSizing: 'border-box',
                       }}
                       className={`border-1 cursor-pointer transition-all ${
@@ -129,11 +154,12 @@ export default function ResultsScreen({
                       <span className={`absolute -top-2 left-0 text-[4px] font-mono px-0.5 leading-none whitespace-nowrap ${
                         isSelected ? 'bg-yellow-400 text-black' : 'bg-red-500 text-white'
                       }`}>
-                        {slot.slot_id}
+                        {box.slot_id}
                       </span>
                     </div>
-                  );     
-              })}
+                  );
+                })
+              }
             </div>
           </div>
         </div>

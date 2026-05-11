@@ -8,14 +8,21 @@ import axios from './api/api';
 import AuthPage from './components/AuthPage';
 import { RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import AdminSpace from './components/admin/AdminSpace';
+import LoginScreen from './components/LoginScreen';
 
 export default function App() {
-  const [step, setStep] = useState('SELECTION');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('vision_user');
+    return saved ? JSON.parse(saved) : null;
+  });  
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedReference, setSelectedReference] = useState(null);
   const [overviewDimensions, setOverviewDimensions] = useState({ w: 0, h: 0 });
   
-
   // Overview
   const [overviewImage, setOverviewImage] = useState(null);   // shown in results
   const [rowCount, setRowCount] = useState(0);
@@ -30,10 +37,42 @@ export default function App() {
   // Results
   const [allResults, setAllResults] = useState([]);
 
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('vision_user', JSON.stringify(user));
+      // Redirect based on role only if we are on the login page or root
+      if (location.pathname === '/Login' || location.pathname === '/') {
+        if (user.role === 'Admin') {
+          navigate('/admin_space');
+        } else {
+          navigate('/Selection');
+        }
+      }
+    } else {
+      localStorage.removeItem('vision_user');
+      if (location.pathname !== '/Login') {
+        navigate('/Login');
+      }
+    }
+  }, [user]);
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setSelectedProject(null);
+    setSelectedReference(null);
+    setCapturedImage(null);
+    setInspectionResult(null);
+  };
+
   // ── Step 1: user captures overview photo ──────────────────────────────────
   const handleOverviewCapture = async (imageData) => {
-    setOverviewImage(imageData);
-    setStep('OVERVIEW_PROCESSING');
+    // setOverviewImage(imageData);
+    navigate('/overview-processing');
 
     const blob = imageDataToBlob(imageData);
     const formData = new FormData();
@@ -44,13 +83,13 @@ export default function App() {
       withCredentials: true,
     });
 
-    // const base64Image = `data:image/jpeg;base64,${response.data.image_base64}`;
-    // setOverviewImage(base64Image);
+    const base64Image = `data:image/jpeg;base64,${response.data.image_base64}`;
+    setOverviewImage(base64Image);
     setRowCount(response.data.row_count);
     setPositionMap(response.data.position_map);
     setOverviewDimensions({ w: response.data.image_width, h: response.data.image_height });
     setCurrentRowIndex(1);
-    setStep('OVERVIEW_DONE');
+    navigate('/overview-done');
   };
 
   // ── Step 2: user captures a row — fire and forget, move to next ───────────
@@ -61,7 +100,7 @@ export default function App() {
     if (rowIndex < rowCount) {
       setCurrentRowIndex(rowIndex + 1);
     } else {
-      setStep('WAITING_RESULTS');
+      navigate('/waiting-results');
     }
 
     // Fire API call in background — no await here
@@ -83,7 +122,7 @@ export default function App() {
           setRowCaptureError(`Row ${rowIndex}: No components detected, please retake.`);
           // Put user back to this row
           setCurrentRowIndex(rowIndex);
-          setStep('ROW_CAPTURE');
+          navigate('/row-capture');
           return;
         }
 
@@ -97,7 +136,7 @@ export default function App() {
         console.error(`Row ${rowIndex} failed:`, err);
         setRowCaptureError(`Row ${rowIndex}: Something went wrong, please retake.`);
         setCurrentRowIndex(rowIndex);
-        setStep('ROW_CAPTURE');
+        navigate('/row-capture');
       } finally {
         setProcessingRows(prev => {
           const next = new Set(prev);
@@ -112,22 +151,31 @@ export default function App() {
 
   // ── Watch for all results to arrive ───────────────────────────────────────
   useEffect(() => {
+    const currentPath = location.pathname;
+
     if (
-      (step === 'WAITING_RESULTS' || step === 'ROW_CAPTURE') &&
+      (currentPath === '/waiting-results' ||
+        currentPath === '/row-capture') &&
       rowCount > 0 &&
       processingRows.size === 0 &&
       Object.keys(rowResults).length === rowCount
     ) {
-      // Flatten all row results and attach bboxes from position_map
-      const flat = Object.values(rowResults).flat().map(item => ({
-        ...item,
-        bbox: item.status === 'FAIL' ? positionMap[item.slot_id] ?? null : null
-      }));
-      setAllResults(flat);
-      setStep('RESULTS');
-    }
-  }, [rowResults, processingRows, step, rowCount, positionMap]);
+      // Flatten all row results and attach bboxes
+      const flat = Object.values(rowResults)
+        .flat()
+        .map(item => ({
+          ...item,
+          bbox:
+            item.status === 'FAIL'
+              ? positionMap[item.slot_id] ?? null
+              : null,
+        }));
 
+      setAllResults(flat);
+
+      navigate('/Results');
+    }
+  }, [rowResults,processingRows,rowCount,positionMap,location.pathname,]);
   // ── Helper ─────────────────────────────────────────────────────────────────
   const imageDataToBlob = (imageData) => {
     const [header, base64] = imageData.split(',');
@@ -139,7 +187,7 @@ export default function App() {
   };
 
   const reset = () => {
-    setStep('SELECTION');
+    navigate('/Selection');
     setOverviewImage(null);
     setRowCount(0);
     setPositionMap({});
@@ -151,117 +199,158 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0F1115] text-[#E2E8F0] font-sans">
-      <Header />
+      <Header 
+        user={user} 
+        onLogout={handleLogout}
+        onAdminClick={() => navigate('/admin_space')} 
+      />
+
       <main className="max-w-4xl mx-auto p-6">
         <AnimatePresence mode="wait">
-          {/* {step === 'AUTH' && (
-            <AuthPage 
-            onSubmit ={() => setStep('SELECTION')} />
-          )} */}
+          <Routes location={location} key={location.pathname}>
+            {/* {step === 'AUTH' && (
+              <AuthPage 
+              onSubmit ={() => setStep('SELECTION')} />
+            )} */}
 
-          {step === 'SELECTION' && (
-            <SelectionScreen
-              selectedProject={selectedProject}
-              setSelectedProject={setSelectedProject}
-              selectedReference={selectedReference}
-              setSelectedReference={setSelectedReference}
-              onStartCamera={() => setStep('OVERVIEW_CAPTURE')}
+            <Route path="/" element={<Navigate to={user ? (user.role === 'Admin' ? '/admin_space' : '/Selection') : '/Login'} replace />} />
+            
+            <Route path="/Login" element={!user ? <LoginScreen onLogin={handleLogin} /> : <Navigate to="/" replace />} />
+
+            <Route 
+              path="/admin_space" 
+              element={
+                user?.role === 'Admin' ? (
+                  <AdminSpace onExit={handleLogout} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } 
             />
-          )}
 
-          {/* Overview capture — full panel shot */}
-          {step === 'OVERVIEW_CAPTURE' && (
-            <CameraScreen
-              mode="overview"
-              label="Capture Full Panel"
-              onBack={() => setStep('SELECTION')}
-              onCapture={handleOverviewCapture}
+            <Route 
+              path="/Selection" 
+              element={
+                <SelectionScreen 
+                  selectedProject={selectedProject}
+                  setSelectedProject={setSelectedProject}
+                  selectedReference={selectedReference}
+                  setSelectedReference={setSelectedReference}
+                  onStartCamera={() => navigate('/overview-capture')}
+                />
+              } 
             />
-          )}
 
-          {/* Brief processing screen while overview is being analysed */}
-          {step === 'OVERVIEW_PROCESSING' && (
-            <div className="flex flex-col items-center justify-center h-64 gap-4">
-              <RefreshCw className="w-10 h-10 text-blue-500 animate-spin" />
-              <p className="font-mono text-white/50 uppercase tracking-widest text-sm">
-                Counting rows...
-              </p>
-            </div>
-          )}
-
-          {step === 'OVERVIEW_DONE' && (
-            <motion.div
-              key="overview-done"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="flex flex-col items-center justify-center gap-8 py-20"
-            >
-              <div className="w-20 h-20 rounded-full bg-blue-500/20 border border-blue-500/50 flex items-center justify-center">
-                <span className="text-3xl font-bold text-blue-400">{rowCount}</span>
-              </div>
-              <div className="text-center space-y-2">
-                <h2 className="text-2xl font-bold tracking-tight">
-                  {rowCount} Row{rowCount !== 1 ? 's' : ''} Detected
-                </h2>
-                <p className="text-white/40 text-sm font-mono">
-                  You will now capture each row one by one
-                </p>
-              </div>
-              <button
-                onClick={() => setStep('ROW_CAPTURE')}
-                className="px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold tracking-widest uppercase transition-all shadow-lg shadow-blue-900/30"
-              >
-                Start
-              </button>
-            </motion.div>
-          )}
-
-          {/* Row-by-row capture */}
-          {step === 'ROW_CAPTURE' && (
-            <CameraScreen
-              mode="row"
-              label={`Row ${currentRowIndex} of ${rowCount}`}
-              rowIndex={currentRowIndex}
-              rowCount={rowCount}
-              processingRows={processingRows}
-              rowResults={rowResults}
-              rowCaptureError={rowCaptureError}
-              currentRowIndex={currentRowIndex}
-              onClearError={() => setRowCaptureError(null)}
-              onBack={() => setStep('OVERVIEW_CAPTURE')}
-              onCapture={handleRowCapture}
+            {/* Overview capture — full panel shot */}
+            <Route
+              path="/overview-capture"
+              element={
+                <CameraScreen
+                  mode="overview"
+                  label="Capture Full Panel"
+                  onBack={() => navigate('/Selection')}
+                  onCapture={handleOverviewCapture}
+                />
+              }
             />
-          )}
 
-          {/* All rows captured, waiting for last background jobs */}
-          {step === 'WAITING_RESULTS' && (
-            <div className="flex flex-col items-center justify-center h-64 gap-4">
-              <RefreshCw className="w-10 h-10 text-blue-500 animate-spin" />
-              <p className="font-mono text-white/50 uppercase tracking-widest text-sm">
-                Finalising results...
-              </p>
-              <p className="text-xs text-white/30 font-mono">
-                {processingRows.size} row{processingRows.size !== 1 ? 's' : ''} still processing
-              </p>
-            </div>
-          )}
-
-          {/* Results — unchanged component, just fed allResults + overviewImage */}
-          {step === 'RESULTS' && (
-            <ResultsScreen
-              inspectionResult={{
-                status: allResults.some(r => r.status === 'FAIL') ? 'Not Valid' : 'Valid',
-                details: allResults,
-                image_width: /* you need to store this from overview */ overviewDimensions.w,
-                image_height: overviewDimensions.h,
-              }}
-              capturedImage={overviewImage}
-              onRetake={() => setStep('OVERVIEW_CAPTURE')}
-              onReset={reset}
+            {/* Brief processing screen while overview is being analysed */}
+            <Route
+              path="/overview-processing"
+              element={
+                  <div className="flex flex-col items-center justify-center h-64 gap-4">
+                    <RefreshCw className="w-10 h-10 text-blue-500 animate-spin" />
+                    <p className="font-mono text-white/50 uppercase tracking-widest text-sm">
+                      Counting rows...
+                    </p>
+                  </div>
+              }
             />
-          )}
 
+            <Route
+              path="/overview-done"
+              element={
+                <motion.div
+                  key="overview-done"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col items-center justify-center gap-8 py-20"
+                >
+                  <div className="w-20 h-20 rounded-full bg-blue-500/20 border border-blue-500/50 flex items-center justify-center">
+                    <span className="text-3xl font-bold text-blue-400">{rowCount}</span>
+                  </div>
+                  <div className="text-center space-y-2">
+                    <h2 className="text-2xl font-bold tracking-tight">
+                      {rowCount} Row{rowCount !== 1 ? 's' : ''} Detected
+                    </h2>
+                    <p className="text-white/40 text-sm font-mono">
+                      You will now capture each row one by one
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/row-capture')}
+                    className="px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold tracking-widest uppercase transition-all shadow-lg shadow-blue-900/30"
+                  >
+                    Start
+                  </button>
+                </motion.div>
+              }
+            />
+
+            {/* Row-by-row capture */}
+            <Route
+              path="/row-capture"
+              element={
+                <CameraScreen
+                  mode="row"
+                  label={`Row ${currentRowIndex} of ${rowCount}`}
+                  rowIndex={currentRowIndex}
+                  rowCount={rowCount}
+                  processingRows={processingRows}
+                  rowResults={rowResults}
+                  rowCaptureError={rowCaptureError}
+                  currentRowIndex={currentRowIndex}
+                  onClearError={() => setRowCaptureError(null)}
+                  onBack={() => navigate('/overview-capture')}
+                  onCapture={handleRowCapture}
+                />
+              }
+            />
+
+            {/* All rows captured, waiting for last background jobs */}
+            <Route
+              path="/waiting-results"
+              element={
+                <div className="flex flex-col items-center justify-center h-64 gap-4">
+                  <RefreshCw className="w-10 h-10 text-blue-500 animate-spin" />
+                  <p className="font-mono text-white/50 uppercase tracking-widest text-sm">
+                    Finalising results...
+                  </p>
+                  <p className="text-xs text-white/30 font-mono">
+                    {processingRows.size} row{processingRows.size !== 1 ? 's' : ''} still processing
+                  </p>
+                </div>
+              }
+            />
+
+            <Route 
+              path="/Results" 
+              element={
+                <ResultsScreen 
+                  inspectionResult={{
+                    status: allResults.some(r => r.status === 'FAIL') ? 'Not Valid' : 'Valid',
+                    details: allResults,
+                    image_width: /* you need to store this from overview */ overviewDimensions.w,
+                    image_height: overviewDimensions.h,
+                  }}
+                  capturedImage={overviewImage}
+                  onRetake={() => navigate('/overview-capture')}
+                  onReset={reset}
+                />
+              } 
+            />
+          </Routes>
         </AnimatePresence>
       </main>
     </div>

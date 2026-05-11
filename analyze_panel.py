@@ -9,8 +9,8 @@ import os
 # ─────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────
-DETECTION_MODEL = "detection/weights/sticker_switch_detection.pt"
-DIGIT_MODEL = "detection/digit_recognition.pt"
+DETECTION_MODEL = "detection\SwSt_RT-DETR.pt"
+DIGIT_MODEL = "detection\Digit_Recognition_rt-edtr.pt"
 STICKER_CLASS_NAME = "sticker"
 SWITCH_CLASS_NAME = "switch"
 REFERENCE_JSON = "data/blueprint.json"
@@ -19,8 +19,6 @@ REFERENCE_JSON = "data/blueprint.json"
 ocr = PaddleOCR(use_angle_cls=False, lang="en", show_log=False)
 detect_model = YOLO(DETECTION_MODEL)
 digit_model = YOLO(DIGIT_MODEL)
-
-os.makedirs("debug_crops", exist_ok=True)
 
 # ─────────────────────────────────────────────
 # CORE: JSON & VALIDATION
@@ -44,20 +42,25 @@ def validate_record(slot_id, identification, calibre, ref_lookup):
     got_cal = calibre.strip().upper()
 
     issues = []
+    where = []
     if exp_id != got_id:
         issues.append(f"ID: expected '{exp_id}' got '{got_id}'")
+        where.append("sticker")
 
     if exp_cal == "MISSING":
         if got_cal != "MISSING":
             issues.append(f"Calibre: expected MISSING but got '{got_cal}'")
+            where.append("switch")
     else:
         if got_cal == "MISSING":
-            issues.append(
-                f"Calibre: expected '{exp_cal}' but switch is MISSING")
+            issues.append(f"Calibre: expected '{exp_cal}' but switch is MISSING")
+            where.append("sticker")
+
         elif exp_cal != got_cal:
             issues.append(f"Calibre: expected '{exp_cal}' got '{got_cal}'")
+            where.append("switch")
 
-    return len(issues) == 0, issues
+    return len(issues) == 0, issues, where
 
 # ─────────────────────────────────────────────
 # PHASE 1: LAYOUT MAPPING (Whole Panel)
@@ -167,7 +170,10 @@ def scan_layout(panel_image_path):
     while i < len(rows):
         if i + 1 < len(rows):
             if get_row_type(rows[i]) != get_row_type(rows[i+1]):
-                row_pairs.append((rows[i], rows[i+1]))
+                sticker_row = rows[i] if get_row_type(rows[i]) == STICKER_CLASS_NAME else rows[i+1]
+                switch_row  = rows[i] if get_row_type(rows[i]) == SWITCH_CLASS_NAME else rows[i+1]
+                
+                row_pairs.append((sticker_row, switch_row))
                 i += 2
                 continue
         i += 1
@@ -181,10 +187,25 @@ def scan_layout(panel_image_path):
         for slot_idx, pair in enumerate(pairs, start=1):
             slot_id = f"R{pair_idx}-S{slot_idx}"
             # Use sticker bbox as the anchor
-            s = pair["sticker"]
+            st = pair["sticker"]
+            switches = pair["switches"]  # could be 0, 1, or 2 switches
+
+            if switches:
+                # Span from leftmost to rightmost switch
+                sw_x1 = min(sw["x1"] for sw in switches)
+                sw_y1 = min(sw["y1"] for sw in switches)
+                sw_x2 = max(sw["x2"] for sw in switches)
+                sw_y2 = max(sw["y2"] for sw in switches)
+            else:
+                sw_x1 = sw_y1 = sw_x2 = sw_y2 = None
+
             position_map[slot_id] = {
-                "x1": s["x1"], "y1": s["y1"],
-                "x2": s["x2"], "y2": s["y2"]
+                "sticker_x1": st["x1"], "sticker_y1": st["y1"],
+                "sticker_x2": st["x2"], "sticker_y2": st["y2"],
+                "switch_x1": sw_x1,
+                "switch_y1": sw_y1,
+                "switch_x2": sw_x2,
+                "switch_y2": sw_y2,
             }
     
     h, w = img.shape[:2]
@@ -329,7 +350,7 @@ def scan_single_row(row_img_path, row_index):
             calibre = "-".join(digits) if len(digits) > 1 else digits[0]
 
         # Validate instantly
-        passed, issues = validate_record(
+        passed, issues, where = validate_record(
             slot_id, sticker_code, calibre, ref_lookup)
 
         status_symbol = "✅" if passed else "❌"
@@ -347,7 +368,8 @@ def scan_single_row(row_img_path, row_index):
             "scanned_identification": sticker_code,
             "expected_calibre": ref.get("expected_calibre", "?"),
             "expected_identification": ref.get("expected_identification", "?"),
-            "message": msg
+            "message": msg,
+            "where": where
         })
     
 
