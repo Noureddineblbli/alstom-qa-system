@@ -13,7 +13,7 @@ faulthandler.enable()
 # CONFIG
 # ─────────────────────────────────────────────
 DETECTION_MODEL = "detection\SwSt_RT-DETR.pt"
-DIGIT_MODEL = "detection/digit_recognition.pt"
+DIGIT_MODEL = "detection\Digit_Recognition_rt-edtr.pt"
 STICKER_CLASS_NAME = "sticker"
 SWITCH_CLASS_NAME = "switch"
 REFERENCE_JSON = "data/blueprint.json"
@@ -37,7 +37,7 @@ def build_validation_lookup(reference_json_path):
 def validate_record(slot_id, identification, calibre, ref_lookup):
     ref = ref_lookup.get(slot_id)
     if not ref:
-        return False, [f"⚠️  No reference found for '{slot_id}'"]
+        return False, [f"⚠️  No reference found for '{slot_id}'"], []
 
     exp_id = ref["expected_identification"].strip().upper()
     exp_cal = ref["expected_calibre"].strip().upper()
@@ -159,7 +159,7 @@ def scan_layout(panel_image_path):
     for r in results:
         for det in r.boxes:
             conf = float(det.conf[0])
-            if conf < 0.5:
+            if conf < 0.8:
                 continue
 
             box = {"x1": int(det.xyxy[0][0]), "y1": int(det.xyxy[0][1]),
@@ -212,8 +212,8 @@ def scan_layout(panel_image_path):
             }
     
     h, w = img.shape[:2]
-    print(
-        f"✅ Layout successfully mapped. Panel has exactly {len(row_pairs)} row pairs.\n")
+    print(f"✅ Layout successfully mapped. Panel has exactly {len(row_pairs)} row pairs.\n")
+    print(f"Number of objects detected: {len(all_boxes)}")
     return len(row_pairs), position_map, h, w
 
 # ─────────────────────────────────────────────
@@ -256,6 +256,7 @@ def read_sticker_raw(img, box):
     padded = cv2.copyMakeBorder(sharpened, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
     result_img = cv2.cvtColor(padded, cv2.COLOR_GRAY2BGR)
     
+    res = None
     try: 
         res = ocr.ocr(result_img, cls=True)
     except Exception as e:
@@ -274,67 +275,82 @@ def read_switch_digit(img, box):
     
     switch_crop = img[y1:y2, x1:x2]
     if switch_crop.size == 0:
-        return "MISSING"
+        return "size 0"
 
     # 2. Run your YOLO model just to find where the digits sit (using your 0.25 thresh)
-    results = digit_model(switch_crop, conf=0.25, verbose=False)
-    digit_boxes = results[0].boxes
+    results = digit_model(switch_crop, verbose=False)
 
-    if digit_boxes is None or len(digit_boxes) == 0:
-        return "MISSING"
+    digits = []
+    for r in results:
+        for det in r.boxes:
+            if float(det.conf[0]) >= 0.4:
+                if float(det.xyxy[0][3] - det.xyxy[0][1]) < 10:
+                    continue
+                cls_id = int(det.cls[0])
+                label  = digit_model.names[cls_id]
+                x_pos  = int(det.xyxy[0][0])
+                digits.append((x_pos, label))
+    if not digits:
+        return "no digits"
+    return "".join(d[1] for d in sorted(digits, key=lambda d: d[0]))
+    # digit_boxes = results[0].boxes
 
-    # 3. Consolidate bounding boxes to wrap ALL detected digits tightly
-    detections =[]
-    for det in digit_boxes:
-        dx1, dy1, dx2, dy2 = det.xyxy[0].cpu().numpy().astype(int)
-        detections.append((dx1, dy1, dx2, dy2))
+    # if digit_boxes is None or len(digit_boxes) == 0:
+    #     return "no detections"
+
+    # # 3. Consolidate bounding boxes to wrap ALL detected digits tightly
+    # detections =[]
+    # for det in digit_boxes:
+    #     dx1, dy1, dx2, dy2 = det.xyxy[0].cpu().numpy().astype(int)
+    #     detections.append((dx1, dy1, dx2, dy2))
         
-    all_x1 = min(d[0] for d in detections)
-    all_y1 = min(d[1] for d in detections)
-    all_x2 = max(d[2] for d in detections)
-    all_y2 = max(d[3] for d in detections)
+    # all_x1 = min(d[0] for d in detections)
+    # all_y1 = min(d[1] for d in detections)
+    # all_x2 = max(d[2] for d in detections)
+    # all_y2 = max(d[3] for d in detections)
 
-    # 4. Crop tightly around the merged bounding box with CROP_PADDING
-    sh, sw = switch_crop.shape[:2]
-    px1, py1 = max(0, all_x1 - CROP_PADDING), max(0, all_y1 - CROP_PADDING)
-    px2, py2 = min(sw, all_x2 + CROP_PADDING), min(sh, all_y2 + CROP_PADDING)
+    # # 4. Crop tightly around the merged bounding box with CROP_PADDING
+    # sh, sw = switch_crop.shape[:2]
+    # px1, py1 = max(0, all_x1 - CROP_PADDING), max(0, all_y1 - CROP_PADDING)
+    # px2, py2 = min(sw, all_x2 + CROP_PADDING), min(sh, all_y2 + CROP_PADDING)
     
-    merged_crop = switch_crop[py1:py2, px1:px2]
+    # merged_crop = switch_crop[py1:py2, px1:px2]
 
-    # 5. Preprocessing Genius: Invert Colors and Upscale x4
-    scaled = cv2.resize(merged_crop, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
-    inverted = cv2.bitwise_not(scaled)
+    # # 5. Preprocessing Genius: Invert Colors and Upscale x4
+    # scaled = cv2.resize(merged_crop, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+    # inverted = cv2.bitwise_not(scaled)
     
-    # Save the processed switches so you can see them! (optional)
-    cv2.imwrite(f"debug_crops/switch_{x1}.png", inverted)
+    # # Save the processed switches so you can see them! (optional)
+    # cv2.imwrite(f"debug_crops/switch_{x1}.png", inverted)
 
-    # 6. Read using PaddleOCR
-    try:
-        ocr_result = ocr.ocr(inverted, cls=True)
-    except Exception as e:
-        print(f"Error occurred while reading switch OCR: {e}")
+    # # 6. Read using PaddleOCR
+    # ocr_result = None
+    # try:
+    #     ocr_result = ocr.ocr(inverted, cls=True)
+    # except Exception as e:
+    #     print(f"Error occurred while reading switch OCR: {e}")
 
-    if not ocr_result or not ocr_result[0]:
-        return "MISSING"
+    # if not ocr_result or not ocr_result[0]:
+    #     return "ocr fail"
 
-    # Combine extracted texts
-    raw_text = " ".join([line[1][0] for line in ocr_result[0]])
+    # # Combine extracted texts
+    # raw_text = " ".join([line[1][0] for line in ocr_result[0]])
     
-    # Paddle might rarely see '1' as 'I' or 'l' or '0' as 'O' before we force it to digits
-    clean_text = raw_text.replace("I", "1").replace("l", "1").replace("O", "0")
+    # # Paddle might rarely see '1' as 'I' or 'l' or '0' as 'O' before we force it to digits
+    # clean_text = raw_text.replace("I", "1").replace("l", "1").replace("O", "0")
     
-    # Force it to strictly return the number by deleting anything that isn't a digit
-    clean_number = re.sub(r'\D', '', clean_text)
+    # # Force it to strictly return the number by deleting anything that isn't a digit
+    # clean_number = re.sub(r'\D', '', clean_text)
     
-    return clean_number if clean_number else "MISSING"
+    # return clean_number if clean_number else "no digits"
 
-def scan_single_row(row_img_path, row_index):
+def scan_single_row(row_img_path, row_index, ref_lookup):
     """
     Simulates Step 2 & 3: Extracts clear data left-to-right from a cropped 
     image of ONE ROW, and checks the results directly against blueprint.json.
     """
 
-    ref_lookup = build_validation_lookup(REFERENCE_JSON)
+    # ref_lookup = build_validation_lookup(REFERENCE_JSON)
 
     img = cv2.imread(row_img_path)
     if img is None:
@@ -401,31 +417,44 @@ def scan_single_row(row_img_path, row_index):
             # Read digits, join them with a hyphen if multiple (e.g. 15-15)
             digits =[read_switch_digit(img, sw) for sw in sorted_sw]
             calibre = "-".join(digits) if len(digits) > 1 else digits[0]
+        
+        if ref_lookup: # inspection use case
 
-        # Validate instantly
-        passed, issues, where = validate_record(
-            slot_id, sticker_code, calibre, ref_lookup)
+            # Validate instantly
+            passed, issues, where = validate_record(
+                slot_id, sticker_code, calibre, ref_lookup)
 
-        status_symbol = "✅" if passed else "❌"
-        msg = "OK" if passed else " | ".join(issues)
+            status_symbol = "✅" if passed else "❌"
+            msg = "OK" if passed else " | ".join(issues)
 
-        print(f"  Slot {i+1:02d} | RAW: '{raw_text:<25}' | ID: {sticker_code:<8} | SW: {calibre:<7} {status_symbol} {msg}")
+            print(f"  Slot {i+1:02d} | RAW: '{raw_text:<25}' | ID: {sticker_code:<8} | SW: {calibre:<7} {status_symbol} {msg}")
 
-        try:
-            ref = ref_lookup.get(slot_id, {})
+            try:
+                ref = ref_lookup.get(slot_id, {})
 
+                row_results.append({
+                    "slot_id": slot_id,
+                    "status": "PASS" if passed else "FAIL",
+                    "scanned_calibre": calibre,
+                    "scanned_identification": sticker_code,
+                    "expected_calibre": ref.get("expected_calibre", "?"),
+                    "expected_identification": ref.get("expected_identification", "?"),
+                    "message": msg,
+                    "where": where
+                })
+            except Exception as e:
+                print(f"  Error processing {slot_id}: {e}")
+
+        else: # reference management use case
             row_results.append({
                 "slot_id": slot_id,
-                "status": "PASS" if passed else "FAIL",
                 "scanned_calibre": calibre,
                 "scanned_identification": sticker_code,
-                "expected_calibre": ref.get("expected_calibre", "?"),
-                "expected_identification": ref.get("expected_identification", "?"),
-                "message": msg,
-                "where": where
             })
-        except Exception as e:
-            print(f"  Error processing {slot_id}: {e}")
+            print("reference management result:")
+            print(f"  Slot {i+1:02d} | RAW: '{raw_text:<25}' | ID: {sticker_code:<8} | SW: {calibre:<7}")
+
+
 
     return row_results
 

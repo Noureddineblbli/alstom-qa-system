@@ -5,9 +5,10 @@ __pycache__/
 
 env311/
 
-detection/dataset/images/
-detection/dataset/labels/
-preprocessing/crops
+backend/uploads/panels/*
+backend/uploads/rows/*
+!backend/uploads/panels/.gitkeep
+!backend/uploads/rows/.gitkeep
 
 frontend/pictures/*
 !frontend/pictures/.gitkeep

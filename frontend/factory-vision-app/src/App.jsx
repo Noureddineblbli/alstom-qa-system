@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import Header from './components/Header';
-import SelectionScreen from './components/SelectionScreen';
-import CameraScreen from './components/CameraScreen';
-import ResultsScreen from './components/ResultsScreen';
+import SelectionScreen from './components/Controller/SelectionScreen';
+import CameraScreen from './components/Controller/CameraScreen';
+import ResultsScreen from './components/Controller/ResultsScreen';
 import axios from './api/api';
-import AuthPage from './components/AuthPage';
 import { RefreshCw } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
@@ -19,6 +18,7 @@ export default function App() {
     const saved = localStorage.getItem('vision_user');
     return saved ? JSON.parse(saved) : null;
   });  
+  const [inspectionId, setInspectionId] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedReference, setSelectedReference] = useState(null);
   const [overviewDimensions, setOverviewDimensions] = useState({ w: 0, h: 0 });
@@ -55,41 +55,84 @@ export default function App() {
         navigate('/Login');
       }
     }
-  }, [user]);
+  }, [user, navigate, location.pathname]);
 
   const handleLogin = (userData) => {
     setUser(userData);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('admin_active_tab');
+    localStorage.removeItem('token');
     setUser(null);
     setSelectedProject(null);
     setSelectedReference(null);
     setCapturedImage(null);
-    setInspectionResult(null);
   };
+
+  const startInspection = async () => {
+    try {
+      const response = await axios.post(
+        '/api/inspections/start',
+        {
+          project_id: selectedProject.project_id,
+          ref_id: selectedReference.ref_id
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+
+      setInspectionId(response.data.inspection_id);
+
+      navigate('/overview-capture');
+
+    } catch (err) {
+      console.error(err);
+      alert('Failed to start inspection');
+    }
+  }
 
   // ── Step 1: user captures overview photo ──────────────────────────────────
   const handleOverviewCapture = async (imageData) => {
-    // setOverviewImage(imageData);
+    
     navigate('/overview-processing');
 
     const blob = imageDataToBlob(imageData);
     const formData = new FormData();
     formData.append("file", blob, "overview.jpg");
 
-    const response = await axios.post("/api/scan_overview", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-      withCredentials: true,
-    });
+    let response;
+    try {
+
+      response = await axios.post(
+        `/api/inspections/${inspectionId}/panel`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+
+    } catch (err) {
+      console.error(err);
+      alert('Failed to upload panel image');
+      navigate('/overview-capture');
+    }
 
     const base64Image = `data:image/jpeg;base64,${response.data.image_base64}`;
     setOverviewImage(base64Image);
+    // setOverviewImage(imageData);
     setRowCount(response.data.row_count);
     setPositionMap(response.data.position_map);
     setOverviewDimensions({ w: response.data.image_width, h: response.data.image_height });
     setCurrentRowIndex(1);
     navigate('/overview-done');
+  
   };
 
   // ── Step 2: user captures a row — fire and forget, move to next ───────────
@@ -103,7 +146,6 @@ export default function App() {
       navigate('/waiting-results');
     }
 
-    // Fire API call in background — no await here
     setProcessingRows(prev => new Set(prev).add(rowIndex));
 
     const processRow = async () => {
@@ -111,12 +153,26 @@ export default function App() {
         const blob = imageDataToBlob(imageData);
         const formData = new FormData();
         formData.append("file", blob, `row_${rowIndex}.jpg`);
-        formData.append("row_index", rowIndex);
 
-        const response = await axios.post("/api/validate_row", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-          withCredentials: true,
-        });
+        let response;
+
+        try {
+          response = await axios.post(
+            `/api/inspections/${inspectionId}/rows/${rowIndex}`,
+            formData,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+              }
+            }
+          );
+        } catch (err) {
+          console.error(err);
+          alert('Failed to upload row image');
+          navigate('/row-capture');
+          return;
+        }
 
         if (response.data.status === "INVALID_IMAGE") {
           setRowCaptureError(`Row ${rowIndex}: No components detected, please retake.`);
@@ -126,11 +182,14 @@ export default function App() {
           return;
         }
 
+        console.log(response.data);
+
         setRowCaptureError(null);
         setRowResults(prev => ({
           ...prev,
           [rowIndex]: response.data.validation_results
         }));
+
 
       } catch (err) {
         console.error(`Row ${rowIndex} failed:`, err);
@@ -195,6 +254,11 @@ export default function App() {
     setRowResults({});
     setProcessingRows(new Set());
     setAllResults([]);
+    setInspectionId(null);
+    setSelectedProject(null);
+    setSelectedReference(null);
+    setOverviewDimensions({ w: 0, h: 0 });
+    setRowCaptureError(null);
   };
 
   return (
@@ -208,10 +272,6 @@ export default function App() {
       <main className="max-w-4xl mx-auto p-6">
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
-            {/* {step === 'AUTH' && (
-              <AuthPage 
-              onSubmit ={() => setStep('SELECTION')} />
-            )} */}
 
             <Route path="/" element={<Navigate to={user ? (user.role === 'Admin' ? '/admin_space' : '/Selection') : '/Login'} replace />} />
             
@@ -236,7 +296,7 @@ export default function App() {
                   setSelectedProject={setSelectedProject}
                   selectedReference={selectedReference}
                   setSelectedReference={setSelectedReference}
-                  onStartCamera={() => navigate('/overview-capture')}
+                  onStartCamera={startInspection}
                 />
               } 
             />

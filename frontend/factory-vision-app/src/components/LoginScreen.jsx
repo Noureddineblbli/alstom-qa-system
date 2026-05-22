@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { LogIn, Shield, User, Lock, AlertCircle, Factory } from 'lucide-react';
-import { USERS } from '../data/mockData';
+import axios from '../api/api';
 
 export default function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -9,22 +9,53 @@ export default function LoginScreen({ onLogin }) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
     setIsLoading(true);
     setError('');
 
-    // Simulate network delay
-    setTimeout(() => {
-      const user = USERS.find(u => u.email === email && u.password === password);
-      
-      if (user) {
-        onLogin(user);
-      } else {
-        setError('Invalid credentials. Please try again.');
-        setIsLoading(false);
+    try {
+      const response = await axios.post(
+        '/api/auth/login', {
+        email,
+        password
+      });
+
+      let data = {};
+
+      try {
+        data = await response.data;
+      } catch {
+        data = {};
       }
-    }, 1000);
+
+      if (!response.data) {
+        throw new Error(data.detail || 'Login failed');
+      }
+
+      // Save token if needed
+      localStorage.setItem('token', data.access_token);
+
+      // create user
+      const user = {
+        email: email.trim(),
+        role: data.role,
+        name: data.nom,
+        id: data.user_id
+      };
+
+      // Pass user to parent component
+      onLogin(user);
+
+      
+
+    } catch (err) {
+      setError(err.message || 'An error occurred during login');
+      localStorage.removeItem('token');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
