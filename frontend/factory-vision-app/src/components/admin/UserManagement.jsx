@@ -24,6 +24,7 @@ export default function UserManagement() {
     role: 'Controller',
     state: 'active'
   });
+  const [successMessage, setSuccessMessage] = useState('');
   
   // Pagination states
   const ROWS_PER_PAGE = 10;
@@ -114,6 +115,12 @@ export default function UserManagement() {
         role: 'Controller'  
       });
 
+      setSuccessMessage('Reference added successfully.');
+
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 4000);
+
     } catch (err) {
       console.error('Failed to create user:', err);
       alert('Failed to create user');
@@ -162,6 +169,12 @@ export default function UserManagement() {
 
       setEditingUser(null);
 
+      setSuccessMessage('User updated successfully.');
+
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 4000);
+
     } catch (err) {
       console.error('Failed to update user:', err);
       alert('Failed to update user');
@@ -183,6 +196,24 @@ export default function UserManagement() {
         </button>
       </div>
 
+      {successMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          className="mb-4 flex items-center justify-between rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-400"
+        >
+          <span>{successMessage}</span>
+
+          <button
+            onClick={() => setSuccessMessage('')}
+            className="text-green-300 hover:text-white transition"
+          >
+            ✕
+          </button>
+        </motion.div>
+      )}
+
       <div className="bg-[#16191E] border border-white/5 rounded-xl overflow-hidden">
         {loading ? (
           <div className="text-center py-10 text-white/40">
@@ -190,7 +221,7 @@ export default function UserManagement() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-3 p-4">
 
               {/* SEARCH */}
               <input
@@ -263,7 +294,7 @@ export default function UserManagement() {
                   </th>
 
                   <th className="p-4 text-[10px] font-mono uppercase text-white/40">
-                    Last Activity
+                    Last Login
                   </th>
 
                   <th className="p-4 text-[10px] font-mono uppercase text-white/40 text-right">
@@ -327,17 +358,17 @@ export default function UserManagement() {
                       </span>
                     </td>
 
-                    {/* LAST ACTIVITY */}
+                    {/* LAST LOGIN */}
                     <td className="p-4 text-xs text-white/40 font-mono min-w-[220px]">
                       <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 shrink-0" />
-
-                        {new Date(new Date().toISOString()).toLocaleDateString()}
-
-                        {new Date(new Date().toISOString()).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                        {user.last_login ? new Date(user.last_login).toLocaleTimeString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true
+                        }) : 'Never'}
                       </div>
                     </td>
 
@@ -493,6 +524,7 @@ export default function UserManagement() {
                   </label>
 
                   <input
+                    required = {!editingUser}
                     type="password"
                     placeholder={
                       editingUser

@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import shutil, os, json
 
 from ultralytics import settings
-from analyze_panel_v2 import scan_layout, scan_single_row
+from ai_service.layout import scan_layout
+from ai_service.row_scanner import scan_single_row
 
 app = FastAPI()
 
@@ -55,15 +56,15 @@ async def scan_row_endpoint(
 
 
     if row_index == 1:
-        image_path = "inspection_3_row_1.jpg"
+        image_path = "reference_row_1.jpg"
     elif row_index == 2:
-        image_path = "inspection_3_row_2.jpg"
+        image_path = "reference_row_2.jpg"
     elif row_index == 3:
-        image_path = "inspection_3_row_3.jpg"
+        image_path = "reference_row_3.jpg"
     elif row_index == 4:
-        image_path = "inspection_3_row_4.jpg"
+        image_path = "reference_row_4.jpg"
     elif row_index == 5:
-        image_path = "inspection_3_row_5.jpg"
+        image_path = "reference_row_5.jpg"
 
     try:
         if use_case == "inspection":

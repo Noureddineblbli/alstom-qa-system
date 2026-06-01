@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from app.services.inspection_service import (
 )
 from app.core.dependencies import get_current_user, require_admin, require_operator
 from app.models.user import User
+from app.models.error import Error
 from app.services.inspection_service import get_all_inspections
 
 router = APIRouter(prefix="/api/inspections", tags=["Inspections"])
@@ -83,6 +84,30 @@ def upload_row_image(
         return {"status": "ERROR", "row_index": row_index, "message": str(e)}
     except Exception as e:
         return {"status": "ERROR", "row_index": row_index, "message": str(e)}
+
+
+@router.post("/{inspection_id}/errors")
+def upload_row_image(
+    inspection_id: int,
+    errors: List[Any],
+    current_user: User = Depends(require_operator),
+    db: Session = Depends(get_db)
+):
+
+    for result in errors:
+        error = Error(
+                slotId=result["slot_id"],
+                inspection_id=inspection_id,
+                extracted_id=result["scanned_identification"],
+                expected_id=result.get("expected_identification", ""),
+                extracted_amp=str(result["scanned_calibre"]),
+                expected_amp=str(result.get("expected_calibre", "")),
+                where = result["where"],
+                bbox = result["bbox"]
+        )
+        db.add(error)
+
+    db.commit()
 
 
 @router.post("/{inspection_id}/complete")

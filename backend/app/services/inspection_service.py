@@ -65,20 +65,20 @@ def process_row_image(inspection_id: int, row_index: int, file, db: Session):
     row_results = process_row(file_path, row_index, ref_lookup)
 
     # Store only failed slots in ERROR table
-    for result in row_results:
-        if result["status"] == "FAIL":
-            ref_slot = ref_lookup.get(result["slot_id"], {})
-            error = Error(
-                slotId=result["slot_id"],
-                inspection_id=inspection_id,
-                extracted_id=result["scanned_identification"],
-                expected_id=ref_slot.get("expected_identification", ""),
-                extracted_amp=str(result["scanned_calibre"]),
-                expected_amp=str(ref_slot.get("expected_calibre", ""))
-            )
-            db.add(error)
+    # for result in row_results:
+    #     if result["status"] == "FAIL":
+    #         ref_slot = ref_lookup.get(result["slot_id"], {})
+    #         error = Error(
+    #             slotId=result["slot_id"],
+    #             inspection_id=inspection_id,
+    #             extracted_id=result["scanned_identification"],
+    #             expected_id=ref_slot.get("expected_identification", ""),
+    #             extracted_amp=str(result["scanned_calibre"]),
+    #             expected_amp=str(ref_slot.get("expected_calibre", ""))
+    #         )
+    #         db.add(error)
 
-    db.commit()
+    # db.commit()
     return row_results
 
 
@@ -100,7 +100,11 @@ def complete_inspection(inspection_id: int, db: Session):
             "status": "FAIL",
             "scanned_identification": error.extracted_id,
             "scanned_calibre": error.extracted_amp or "MISSING",
-            "message": f"ID: expected '{error.expected_id}' got '{error.extracted_id}' | Calibre: expected '{error.expected_amp}' got '{error.extracted_amp}'"
+            "expected_identification": error.expected_id,
+            "expected_calibre": error.expected_amp,
+            "message": f"ID: expected '{error.expected_id}' got '{error.extracted_id}' | Calibre: expected '{error.expected_amp}' got '{error.extracted_amp}'",
+            "where" : error.where,
+            "bbox" : error.bbox
         })
 
     verdict = "VALID" if len(failed_slots) == 0 else "INVALID"
@@ -112,7 +116,8 @@ def complete_inspection(inspection_id: int, db: Session):
 
     panel_image_path = os.path.join(
         settings.UPLOAD_DIR, "panels",
-        f"inspection_{inspection_id}_panel.jpg"
+        "reference_panel_20260521_151710.jpg"
+        # f"inspection_{inspection_id}_panel.jpg"
     )
 
     with open(panel_image_path, "rb") as img_file:

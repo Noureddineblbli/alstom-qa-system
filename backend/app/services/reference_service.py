@@ -7,11 +7,18 @@ from app.models.reference_data import ReferenceData
 from app.utils.excel_parser import parse_reference_file
 from app.core.config import settings
 from app.models.user import User
+from app.models.inspection import Inspection
+
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
+
 
 def get_all_references(db: Session):
     results = (
         db.query(Reference, User.nom, User.email)
         .join(User, Reference.created_by == User.user_id)
+        .filter(Reference.is_archived == 0)
         .all()
     )
 
@@ -27,7 +34,7 @@ def get_all_references(db: Session):
     ]
 
 def get_reference_by_id(ref_id: str, db: Session):
-    return db.query(Reference).filter(Reference.ref_id == ref_id).first()
+    return db.query(Reference).filter(Reference.ref_id == ref_id, Reference.is_archived == 0).first()
 
 def get_reference_slots(ref_id: str, db: Session):
     return db.query(ReferenceData).filter(ReferenceData.ref_id == ref_id).all()
@@ -115,10 +122,21 @@ def delete_reference(ref_id: str, db: Session):
     reference = db.query(Reference).filter(Reference.ref_id == ref_id).first()
     if not reference:
         return None
-    db.query(ReferenceData).filter(ReferenceData.ref_id == ref_id).delete()
-    db.delete(reference)
-    db.commit()
-    return True
+    inspection_count = db.query(Inspection).filter(
+        Inspection.ref_id == ref_id
+    ).count()
+
+    if inspection_count != 0:
+        reference.is_archived = 1
+        db.commit()
+        db.refresh(reference)
+        return True
+    
+    else:
+        db.query(ReferenceData).filter(ReferenceData.ref_id == ref_id).delete()
+        db.delete(reference)
+        db.commit()
+        return True
 
 def update_reference(ref_id: str, new_project_id: int, db: Session):
     reference = db.query(Reference).filter(Reference.ref_id == ref_id).first()
@@ -158,9 +176,6 @@ def bulk_update_reference_slots(ref_id: str, slots: list, db: Session):
     return updated
 
 
-import io
-import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
 
 def generate_reference_template() -> io.BytesIO:
     wb = openpyxl.Workbook()

@@ -8,7 +8,7 @@ def scan_layout(panel_image_path: str) -> int:
         response = httpx.post(
             f"{AI_SERVICE_URL}/scan-layout",
             files={"file": ("panel.jpg", f, "image/jpeg")},
-            timeout=60.0
+            timeout=1000.0
         )
     response.raise_for_status()
     return response.json()
