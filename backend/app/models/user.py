@@ -10,3 +10,4 @@ class User(Base):
     password = Column(String, nullable=False)
     role = Column(String, nullable=False)  # "admin" or "controller"
     state = Column(String, default="active")
+    last_login = Column(String, nullable=True, default=None)

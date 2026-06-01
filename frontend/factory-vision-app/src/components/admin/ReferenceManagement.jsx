@@ -26,6 +26,9 @@ export default function ReferenceManagement() {
   const [newProjectName, setNewProjectName] = useState('');
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [formError, setFormError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('')
 
   // Pagination
   const ROWS_PER_PAGE = 10;
@@ -141,6 +144,10 @@ export default function ReferenceManagement() {
 
     } catch (err) {
       console.error('Failed to load projects:', err);
+      setErrorMessage('Failed to load projects.');
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 4000);
     }
   };
 
@@ -158,6 +165,11 @@ export default function ReferenceManagement() {
 
     } catch (err) {
       console.error('Failed to load references:', err);
+      setErrorMessage('Failed to load references.');
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 4000);
+
     } finally {
       setLoading(false);
     }
@@ -191,10 +203,6 @@ export default function ReferenceManagement() {
         }
       });
 
-      if (!response.data) {
-        throw new Error('Failed to load reference details');
-      }
-
       const fullReference = await response.data;
 
       setSelectedRef(fullReference);
@@ -205,6 +213,10 @@ export default function ReferenceManagement() {
 
     } catch (err) {
       console.error(err);
+      setErrorMessage('Failed to load reference details.');
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 4000);
     }
   };
 
@@ -222,10 +234,6 @@ export default function ReferenceManagement() {
         }
       );
 
-      if (!response.data) {
-        throw new Error('Failed to update reference');
-      }
-
       const updated = await response.data;
 
       setReferences(prev =>
@@ -235,8 +243,18 @@ export default function ReferenceManagement() {
       setEditingRowId(null);
       setEditRowBuffer(null);
 
+      setSuccessMessage('Reference updated successfully.');
+
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 4000);
+
     } catch (err) {
       console.error(err);
+      setErrorMessage('Failed to update reference.');
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 4000);
     }
   };
 
@@ -298,10 +316,6 @@ export default function ReferenceManagement() {
         }
       );
 
-      if (!response.data) {
-        throw new Error('Failed to update reference');
-      }
-
       const updatedReference = await response.data;
 
       setReferences(prev =>
@@ -315,13 +329,37 @@ export default function ReferenceManagement() {
 
     } catch (err) {
       console.error(err);
+      setErrorMessage('Failed to save changes.');
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 4000);
+
     }
   };
+
+  const MAX_FILE_SIZE = 6 * 1024 * 1024; // 6MB
+  const ALLOWED_TYPES = [
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel"
+  ];
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
 
-    if (!file) return;
+    if (!file) {
+      setFormError("Please select a file");
+      return;
+    }
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setFormError("Only Excel files (.xlsx, .xls) are allowed");
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setFormError("File size must be less than 6MB");
+      return;
+    }
 
     setSelectedFile(file);
   };
@@ -350,10 +388,6 @@ export default function ReferenceManagement() {
         }
       );
 
-      if (!response.data) {
-        throw new Error('Failed to create reference');
-      }
-
       const createdReference = await response.data;
 
       setReferences(prev => [createdReference, ...prev]);
@@ -371,9 +405,18 @@ export default function ReferenceManagement() {
         fileInputRef.current.value = '';
       }
 
+      setSuccessMessage('Reference added successfully.');
+
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 4000);
+
     } catch (err) {
-      console.error(err);
-      alert(err.message);
+      setErrorMessage('Failed to add reference.');
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 4000);
+
     } finally {
       setIsUploading(false);
     }
@@ -398,8 +441,17 @@ export default function ReferenceManagement() {
 
       setDeleteConfirmId(null);
 
+      setSuccessMessage('Reference deleted successfully.');
+
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 4000);
+
     } catch (err) {
-      console.error(err);
+      setErrorMessage('Failed to delete reference.');
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 4000);
     }
   };
 
@@ -432,10 +484,6 @@ export default function ReferenceManagement() {
         }
       );
 
-      if (!response.data) {
-        throw new Error('Failed to create project');
-      }
-
       const createdProject = await response.data;
 
       // Add to dropdown list
@@ -452,8 +500,11 @@ export default function ReferenceManagement() {
       setShowNewProjectInput(false);
 
     } catch (err) {
-      console.error(err);
-      alert(err.message);
+      setErrorMessage('Failed to create project.');
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 4000);
+
     } finally {
       setIsAddingProject(false);
     }
@@ -476,10 +527,6 @@ export default function ReferenceManagement() {
       // In Axios with responseType 'blob', the blob is already in response.data
       const blob = response.data;
 
-      if (!blob) {
-        throw new Error('Failed to download template');
-      }
-
       // Create a URL for the blob
       const url = window.URL.createObjectURL(blob);
 
@@ -497,8 +544,10 @@ export default function ReferenceManagement() {
       window.URL.revokeObjectURL(url);
 
     } catch (err) {
-      console.error('Download error:', err);
-      alert('Failed to download template');
+      setErrorMessage('Failed to download template.');
+      setTimeout(() => {
+        setErrorMessage('');
+      }, 4000);
     }
   };
 
@@ -533,6 +582,40 @@ export default function ReferenceManagement() {
             </div>
 
             {/* Main Table */} 
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mb-4 flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+              >
+                <span>{errorMessage}</span>
+
+                <button
+                  onClick={() => setErrorMessage('')}
+                  className="text-red-300 hover:text-white transition"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            )}
+            {successMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mb-4 flex items-center justify-between rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-400"
+              >
+                <span>{successMessage}</span>
+
+                <button
+                  onClick={() => setSuccessMessage('')}
+                  className="text-green-300 hover:text-white transition"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            )}
             <div className="bg-[#16191E] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
               {/* <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
                 <div className="relative w-72">
@@ -554,8 +637,9 @@ export default function ReferenceManagement() {
                   Loading references...
                 </div>
               ) : (
+
                 <div className="overflow-x-auto touch-pan-x">
-                  <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-3 p-4">
 
                     {/* SEARCH by Reference ID */}
                     <input
@@ -870,6 +954,17 @@ export default function ReferenceManagement() {
                   <p className="text-white/40">Manage project-specific references and data.</p>
                 </div>
               </div>
+
+              {formError && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl text-xs flex items-center gap-2"
+                >
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {formError}
+                </motion.div>
+              )}
 
               <div className="space-y-6">
                 <div>

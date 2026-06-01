@@ -9,3 +9,4 @@ class Reference(Base):
     project_id = Column(Integer, ForeignKey("projects.project_id"), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    is_archived = Column(Integer, server_default='0')

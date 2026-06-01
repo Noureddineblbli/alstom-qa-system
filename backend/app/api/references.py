@@ -167,7 +167,7 @@ def upload_panel_image(
             response = httpx.post(
                 f"{AI_SERVICE_URL}/scan-layout",
                 files={"file": ("panel.jpg", f, "image/jpeg")},
-                timeout=60.0
+                timeout=1000.0
             )
         response.raise_for_status()
 
@@ -208,7 +208,7 @@ def upload_row_image(
                     "use_case" : "reference_management"
                 },
                 files={"file": ("row.jpg", f, "image/jpeg")},
-                timeout=120.0
+                timeout=1000.0
             )
         response.raise_for_status()
         return {

@@ -182,8 +182,6 @@ export default function App() {
           return;
         }
 
-        console.log(response.data);
-
         setRowCaptureError(null);
         setRowResults(prev => ({
           ...prev,
@@ -231,6 +229,29 @@ export default function App() {
         }));
 
       setAllResults(flat);
+
+      console.log('results:', flat)
+
+      const failures = flat.filter(d => d.status === 'FAIL');
+      let response;
+
+      try {
+        response = axios.post(
+          `/api/inspections/${inspectionId}/errors`,
+          failures,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem('token')}`
+            }
+          }
+        );
+      } catch (err) {
+        console.error(err);
+        alert('Failed to store errors');
+        navigate('/row-capture');
+        return;
+      }
 
       navigate('/Results');
     }

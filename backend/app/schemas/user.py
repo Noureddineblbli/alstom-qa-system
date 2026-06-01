@@ -23,6 +23,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     state: str
+    last_login: Optional[str] = None
 
     class Config:
         from_attributes = True
